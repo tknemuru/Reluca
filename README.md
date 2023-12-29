@@ -1,0 +1,2 @@
+# Reluca
+reversi
