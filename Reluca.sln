@@ -5,6 +5,8 @@ VisualStudioVersion = 17.8.34330.188
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reluca", "Reluca\Reluca.csproj", "{D38C7B47-FFBD-4FFC-9038-268C27D5B2F2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reluca.Tests", "Reluca.Tests\Reluca.Tests.csproj", "{7D7BC4C7-8AF9-4228-9C21-6F0EEBDA6091}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{D38C7B47-FFBD-4FFC-9038-268C27D5B2F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D38C7B47-FFBD-4FFC-9038-268C27D5B2F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D38C7B47-FFBD-4FFC-9038-268C27D5B2F2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7D7BC4C7-8AF9-4228-9C21-6F0EEBDA6091}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7D7BC4C7-8AF9-4228-9C21-6F0EEBDA6091}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7D7BC4C7-8AF9-4228-9C21-6F0EEBDA6091}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7D7BC4C7-8AF9-4228-9C21-6F0EEBDA6091}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
