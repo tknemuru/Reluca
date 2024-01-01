@@ -43,6 +43,7 @@ namespace Reluca.Di
         {
             var services = new ServiceCollection();
             services.AddSingleton<StringToBoardContextConverter, StringToBoardContextConverter>();
+            services.AddTransient<BoardContext, BoardContext>();
             var provider = services.BuildServiceProvider();
             return provider;
         }

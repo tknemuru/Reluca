@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Reluca.Converters;
 using Reluca.Di;
+using Reluca.Helpers;
 
 namespace Reluca.Tests.Converters
 {
@@ -14,7 +15,11 @@ namespace Reluca.Tests.Converters
         [TestMethod]
         public void 盤の状態を変換できる()
         {
-            Target.Convert(GetResourcePath(1, 1, ResourceType.In));
+            var actual = Target.Convert(FileHelper.ReadTextLines(GetResourcePath(1, 1, ResourceType.In)));
+            var expected = DiProvider.Get().GetService<BoardContext>();
+            expected.Black = 0b00100010_00010001_10001000_01000100_00100010_00010001_10001000_01000100;
+            expected.White = 0b00010001_10001000_01000100_00100010_00010001_10001000_01000100_00100010;
+            Assert.AreEqual(expected, actual);
         }
     }
 #pragma warning restore CS8602 // null 参照の可能性があるものの逆参照です。
