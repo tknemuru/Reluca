@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
 
 namespace Reluca.Tests
 {
@@ -28,6 +29,7 @@ namespace Reluca.Tests
         protected BaseUnitTest()
         {
             Target = DiProvider.Get().GetService<T>();
+            Debug.Assert(Target != null);
         }
 
         /// <summary>

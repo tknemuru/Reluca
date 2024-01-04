@@ -1,7 +1,10 @@
-﻿using System;
+﻿using Reluca.Models;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Reluca.Converters
@@ -18,7 +21,30 @@ namespace Reluca.Converters
         /// <returns>文字列に変化した盤コンテキスト</returns>
         public string Convert(BoardContext input)
         {
-            throw new NotImplementedException();
+            Debug.Assert(input != null);
+            var sb = new StringBuilder();
+            sb.AppendLine("　ａｂｃｄｅｆｇｈ　");
+            for (var i = 0; i < Board.Length; i++)
+            {
+                var wideIdx = Regex.Replace((i + 1).ToString(), "[0-9]", si => ((char)(si.Value[0] - '0' + '０')).ToString());
+                sb.Append(wideIdx);
+                for (var j = 0; j < Board.Length; j++)
+                {
+                    if (0ul < (input.Black & (1ul << (j + (i * Board.Length)))))
+                    {
+                        sb.Append(Board.Icon.Black);
+                    } else if (0ul < (input.White & (1ul << (j + (i * Board.Length)))))
+                    {
+                        sb.Append(Board.Icon.White);
+                    } else
+                    {
+                        sb.Append(Board.Icon.Empty);
+                    }
+                }
+                sb.AppendLine(wideIdx);
+            }
+            sb.AppendLine("　ａｂｃｄｅｆｇｈ　");
+            return sb.ToString();
         }
     }
 }

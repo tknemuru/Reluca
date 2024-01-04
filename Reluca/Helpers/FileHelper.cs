@@ -9,7 +9,7 @@ namespace Reluca.Helpers
     /// <summary>
     /// ファイル操作に関する補助機能を提供します。
     /// </summary>
-    public class FileHelper
+    public static class FileHelper
     {
         /// <summary>
         /// エンコードの初期値
