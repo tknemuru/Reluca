@@ -12,7 +12,7 @@ namespace Reluca
     public record BoardContext
     {
         /// <summary>
-        /// 黒石の廃止状態
+        /// 黒石の配置状態
         /// </summary>
         public ulong Black { get; set; }
 

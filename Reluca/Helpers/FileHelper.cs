@@ -21,7 +21,7 @@ namespace Reluca.Helpers
         /// </summary>
         /// <param name="filePath">ファイルパス</param>
         /// <returns>文字列のリスト</returns>
-        public static IEnumerable<string> ReadTextLines(string filePath, Encoding encoding = null)
+        public static IEnumerable<string> ReadTextLines(string filePath, Encoding? encoding = null)
         {
             if (encoding == null) { encoding = Encoding.GetEncoding(DefaultEncoding); }
 
