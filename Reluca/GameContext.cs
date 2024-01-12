@@ -45,5 +45,14 @@ namespace Reluca
         {
             BoardContext = new BoardContext();
         }
+
+        /// <summary>
+        /// コンストラクタ
+        /// </summary>
+        /// <param name="boardContext">盤状態</param>
+        public GameContext(BoardContext boardContext)
+        {
+            BoardContext = boardContext;
+        }
     }
 }

@@ -42,11 +42,11 @@ namespace Reluca.Di
         private static ServiceProvider BuildDefaultProvider()
         {
             var services = new ServiceCollection();
-            services.AddTransient<BoardContext, BoardContext>();
             services.AddTransient<GameContext, GameContext>();
             services.AddSingleton<StringToBoardContextConverter, StringToBoardContextConverter>();
             services.AddSingleton<BoardContextToStringConverter, BoardContextToStringConverter>();
             services.AddSingleton<StringToMobilityBoardConverter, StringToMobilityBoardConverter>();
+            services.AddSingleton<MobilityBoardToStringConverter, MobilityBoardToStringConverter>();
             var provider = services.BuildServiceProvider();
             return provider;
         }

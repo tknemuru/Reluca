@@ -17,9 +17,11 @@ namespace Reluca.Tests.Converters
         {
             var expected = IEnumerableHelper.IEnumerableToString(FileHelper.ReadTextLines(GetResourcePath(1, 1, ResourceType.Out)));
 
-            var input = DiProvider.Get().GetService<BoardContext>();
-            input.Black = 0b00100010_00010001_10001000_01000100_00100010_00010001_10001000_01000100;
-            input.White = 0b00010001_10001000_01000100_00100010_00010001_10001000_01000100_00100010;
+            var input = new BoardContext
+            {
+                Black = 0b00100010_00010001_10001000_01000100_00100010_00010001_10001000_01000100,
+                White = 0b00010001_10001000_01000100_00100010_00010001_10001000_01000100_00100010
+            };
             var actual = Target.Convert(input);
 
             Assert.AreEqual(expected, actual);
