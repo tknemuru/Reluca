@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Reluca
+namespace Reluca.Contexts
 {
     /// <summary>
     /// 盤の状態を管理します。

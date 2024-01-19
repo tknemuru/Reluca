@@ -9,7 +9,7 @@ namespace Reluca.Converters
     /// <summary>
     /// 変換機能を提供します。
     /// </summary>
-    public interface IConvertible<TIn, TOut>
+    public interface IConvertible<in TIn, out TOut>
     {
         /// <summary>
         /// 変換を実行します。

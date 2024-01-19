@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+using Reluca.Contexts;
 using Reluca.Converters;
 using Reluca.Di;
 using Reluca.Helpers;
@@ -16,9 +16,11 @@ namespace Reluca.Tests.Converters
         public void î’ÇÃèÛë‘Çïœä∑Ç≈Ç´ÇÈ()
         {
             var actual = Target.Convert(FileHelper.ReadTextLines(GetResourcePath(1, 1, ResourceType.In)));
-            var expected = DiProvider.Get().GetService<BoardContext>();
-            expected.Black = 0b00100010_00010001_10001000_01000100_00100010_00010001_10001000_01000100;
-            expected.White = 0b00010001_10001000_01000100_00100010_00010001_10001000_01000100_00100010;
+            var expected = new BoardContext
+            {
+                Black = 0b00100010_00010001_10001000_01000100_00100010_00010001_10001000_01000100,
+                White = 0b00010001_10001000_01000100_00100010_00010001_10001000_01000100_00100010
+            };
             Assert.AreEqual(expected, actual);
         }
     }

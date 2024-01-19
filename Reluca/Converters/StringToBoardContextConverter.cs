@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Reluca.Contexts;
 using Reluca.Di;
 using Reluca.Models;
 using System;
@@ -24,7 +25,7 @@ namespace Reluca.Converters
         {
             var converter = DiProvider.Get().GetService<StringToMobilityBoardConverter>();
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
-            return converter.Convert(input).BoardContext;
+            return converter.Convert(input).Board;
 #pragma warning restore CS8602 // null 参照の可能性があるものの逆参照です。
         }
     }
