@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+using Reluca.Contexts;
 using Reluca.Converters;
 using Reluca.Di;
 using Reluca.Helpers;
@@ -7,7 +7,7 @@ namespace Reluca.Tests.Converters
 {
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
     /// <summary>
-    /// BoardStringToContextConverterTestの単体テスト機能を提供します。
+    /// BoardStringToContextConverterの単体テスト機能を提供します。
     /// </summary>
     [TestClass]
     public class BoardContextToStringConverterTest : BaseUnitTest<BoardContextToStringConverter>

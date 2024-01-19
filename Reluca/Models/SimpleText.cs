@@ -26,6 +26,20 @@ namespace Reluca.Models
         /// </summary>
         public static class Key
         {
+            /// <summary>
+            /// ターン
+            /// </summary>
+            public const string Turn = "ターン";
+
+            /// <summary>
+            /// 指し手
+            /// </summary>
+            public const string Move = "指し手";
+
+            /// <summary>
+            /// 盤
+            /// </summary>
+            public const string Board = "盤";
         }
     }
 }
