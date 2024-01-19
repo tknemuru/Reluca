@@ -36,7 +36,7 @@ namespace Reluca.Converters
             sb.AppendLine($"{SimpleText.Key.Move}{SimpleText.KeyValueSeparator}{BoardAccessor.ToPosition(input.Move)}");
             sb.AppendLine($"{SimpleText.Key.Board}{SimpleText.KeyValueSeparator}");
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
-            sb.AppendLine(DiProvider.Get().GetService<BoardContextToStringConverter>().Convert(input.Board));
+            sb.Append(DiProvider.Get().GetService<MobilityBoardToStringConverter>().Convert(input));
 #pragma warning restore CS8602 // null 参照の可能性があるものの逆参照です。
             return sb.ToString();
         }

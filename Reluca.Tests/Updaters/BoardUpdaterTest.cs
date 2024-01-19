@@ -14,6 +14,14 @@ namespace Reluca.Tests.Updaters
     [TestClass]
     public class BoardUpdaterTest : BaseUnitTest<BoardUpdater>
     {
-
+        [TestMethod]
+        public void 指し手によって石を裏返すことができる()
+        {
+            var expected = CreateGameContext(1, 1, ResourceType.Out);
+            var actual = CreateGameContext(1, 1, ResourceType.In);
+            Target.Update(actual);
+            AssertEqualGameContext(expected, actual);
+            Assert.AreEqual(expected, actual);
+        }
     }
 }

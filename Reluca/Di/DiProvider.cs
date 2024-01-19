@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Reluca.Contexts;
 using Reluca.Converters;
+using Reluca.Updaters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -47,8 +48,9 @@ namespace Reluca.Di
             services.AddSingleton<BoardContextToStringConverter, BoardContextToStringConverter>();
             services.AddSingleton<StringToMobilityBoardConverter, StringToMobilityBoardConverter>();
             services.AddSingleton<MobilityBoardToStringConverter, MobilityBoardToStringConverter>();
-            services.AddSingleton<StringToGameContextConveter, StringToGameContextConveter>();
+            services.AddSingleton<StringToGameContextConverter, StringToGameContextConverter>();
             services.AddSingleton<GameContextToStringConverter, GameContextToStringConverter>();
+            services.AddSingleton<BoardUpdater, BoardUpdater>();
             var provider = services.BuildServiceProvider();
             return provider;
         }

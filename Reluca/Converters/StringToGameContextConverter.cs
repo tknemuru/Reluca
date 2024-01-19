@@ -14,7 +14,7 @@ namespace Reluca.Converters
     /// <summary>
     /// ゲーム状態を示す文字列の変換機能を提供します。
     /// </summary>
-    public class StringToGameContextConveter : IConvertible<IEnumerable<string>, GameContext>
+    public class StringToGameContextConverter : IConvertible<IEnumerable<string>, GameContext>
     {
         /// <summary>
         /// 文字列をゲーム状態に変換します。

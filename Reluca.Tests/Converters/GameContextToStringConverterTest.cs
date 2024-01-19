@@ -12,15 +12,21 @@ namespace Reluca.Tests.Converters
 {
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
     /// <summary>
-    /// StringToGameContextConveterの単体テスト機能を提供します。
+    /// GameContextToStringConverterの単体テスト機能を提供します。
     /// </summary>
     [TestClass]
-    public class StringToGameContextConveterTest : BaseUnitTest<StringToGameContextConveter>
+    public class GameContextToStringConverterTest : BaseUnitTest<GameContextToStringConverter>
     {
         [TestMethod]
         public void ゲーム状態を変換できる()
         {
-            var expected = new GameContext
+            var expectedRows = FileHelper.ReadTextLines(GetResourcePath(1, 1, ResourceType.Out));
+            var expected = new StringBuilder();
+            foreach(var row in expectedRows)
+            {
+                expected.AppendLine(row);
+            }
+            var context = new GameContext
             {
                 Turn = Disc.Color.Black,
                 Move = 35,
@@ -28,8 +34,8 @@ namespace Reluca.Tests.Converters
                 White = 0b00010001_10001000_01000100_00100010_00010001_10001000_01000100_00100010,
                 Mobility = 0b01000100_00100010_00010001_10001000_01000100_00100010_00010001_10001000
             };
-            var actual = Target.Convert(FileHelper.ReadTextLines(GetResourcePath(1, 1, ResourceType.In)));
-            Assert.AreEqual(expected, actual);
+            var actual = Target.Convert(context);
+            Assert.AreEqual(expected.ToString(), actual);
         }
     }
 }

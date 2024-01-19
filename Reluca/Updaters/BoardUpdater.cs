@@ -16,9 +16,9 @@ namespace Reluca.Updaters
     public class BoardUpdater : IGameContextUpdatable
     {
         /// <summary>
-        /// 指し手による
+        /// 指し手による盤の更新を行います。
         /// </summary>
-        /// <param name="context"></param>
+        /// <param name="context">ゲーム状態</param>
         public void Update(GameContext context)
         {
             Debug.Assert(context != null);
