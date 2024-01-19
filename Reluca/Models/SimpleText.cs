@@ -22,6 +22,11 @@ namespace Reluca.Models
         public const char ValueSeparator = '|';
 
         /// <summary>
+        /// コンテキストを分離する文字
+        /// </summary>
+        public const string ContextSeparator = "-";
+
+        /// <summary>
         /// キー
         /// </summary>
         public static class Key

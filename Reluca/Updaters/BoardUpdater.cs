@@ -22,7 +22,7 @@ namespace Reluca.Updaters
         public void Update(GameContext context)
         {
             Debug.Assert(context != null);
-            Debug.Assert(context.Move > 0);
+            Debug.Assert(context.Move >= 0);
             Debug.Assert(context.Turn != Disc.Color.Undefined);
 
             var i = context.Move;
@@ -189,7 +189,11 @@ namespace Reluca.Updaters
             tmpOppsite = opposite;
             valid = false;
             index = i - 1 + Board.Length;
-            var orgColIndex = BoardAccessor.GetColumnIndex(index);
+            var orgColIndex = -1;
+            if (index < Board.AllLength)
+            {
+                orgColIndex = BoardAccessor.GetColumnIndex(index);
+            }
             while (index < Board.AllLength && BoardAccessor.GetColumnIndex(index) <= orgColIndex)
             {
                 // 空マスが存在したら不成立
@@ -248,7 +252,11 @@ namespace Reluca.Updaters
             tmpOppsite = opposite;
             valid = false;
             index = i + 1 + Board.Length;
-            orgColIndex = BoardAccessor.GetColumnIndex(index);
+            orgColIndex = 99;
+            if (index < Board.AllLength)
+            {
+                orgColIndex = BoardAccessor.GetColumnIndex(index);
+            }
             while (index < Board.AllLength && BoardAccessor.GetColumnIndex(index) >= orgColIndex)
             {
                 // 空マスが存在したら不成立

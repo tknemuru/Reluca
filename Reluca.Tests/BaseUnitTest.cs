@@ -9,6 +9,8 @@ using System.Diagnostics;
 using Reluca.Helpers;
 using Reluca.Converters;
 using Reluca.Contexts;
+using System.Text.RegularExpressions;
+using Reluca.Models;
 
 namespace Reluca.Tests
 {
@@ -74,6 +76,40 @@ namespace Reluca.Tests
         }
 
         /// <summary>
+        /// リソースファイルから複数の盤状態を作成します。
+        /// </summary>
+        /// <param name="index">インデックス</param>
+        /// <param name="childIndex">子インデックス</param>
+        /// <param name="type">リソース種別</param>
+        /// <param name="extension">拡張子</param>
+        /// <returns>盤状態のリスト</returns>
+        protected List<GameContext> CreateMultipleGameContexts(int index, int childIndex, ResourceType type, string extension = "txt")
+        {
+            var contexts = new List<GameContext>();
+            var lines = FileHelper.ReadTextLines(GetResourcePath(index, childIndex, type));
+            var unit = new List<string>();
+            foreach (var value in lines)
+            {
+                var val = value.Trim();
+                if (value.Contains(SimpleText.ContextSeparator) || val == string.Empty)
+                {
+                    if (unit.Count > 0)
+                    {
+                        contexts.Add(DiProvider.Get().GetService<StringToGameContextConverter>().Convert(unit));
+                    }
+                    unit.Clear();
+                    continue;
+                }
+                unit.Add(val);
+            }
+            if (unit.Count > 0)
+            {
+                contexts.Add(DiProvider.Get().GetService<StringToGameContextConverter>().Convert(unit));
+            }
+            return contexts;
+        }
+
+        /// <summary>
         /// ゲーム状態が期待通りであるかを検証します。
         /// </summary>
         /// <param name="expected">期待するゲーム状態</param>
@@ -83,6 +119,8 @@ namespace Reluca.Tests
             var expectedStr = DiProvider.Get().GetService<GameContextToStringConverter>().Convert(expected);
             var acutualStr = DiProvider.Get().GetService<GameContextToStringConverter>().Convert(actual);
             Assert.AreEqual(expectedStr, acutualStr);
+            // 念のため生の状態も検証しておく
+            Assert.AreEqual(expected, actual);
         }
     }
 }

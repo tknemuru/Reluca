@@ -32,7 +32,7 @@ namespace Reluca.Accessors
         /// <returns>列インデックス</returns>
         public static int GetColumnIndex(int index)
         {
-            Debug.Assert(index >= 0 && index < Board.AllLength);
+            Debug.Assert(index >= 0 && index < Board.AllLength, $"{index}");
             return index % Board.Length;
         }
 
