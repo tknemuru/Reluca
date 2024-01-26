@@ -204,5 +204,56 @@ namespace Reluca.Tests.Accessors
             BoardAccessor.SetDisc(context, Disc.Color.White, BoardAccessor.ToIndex("e5"));
             BoardAccessor.SetDisc(context, Disc.Color.White, BoardAccessor.ToIndex("a8"));
         }
+
+        [TestMethod]
+        public void ターンを逆の色に変更できる()
+        {
+            var context = new GameContext();
+            context.Turn = Disc.Color.Black;
+            BoardAccessor.ChangeOppositeTurn(context);
+            Assert.AreEqual(context.Turn, Disc.Color.White);
+            BoardAccessor.ChangeOppositeTurn(context);
+            Assert.AreEqual(context.Turn, Disc.Color.Black);
+        }
+
+        [TestMethod]
+        public void ゲーム状態をディープコピーできる()
+        {
+            var context = new GameContext
+            {
+                TurnCount = 5,
+                Turn = Disc.Color.Black,
+                Black = 10,
+                White = 20
+            };
+            var _context = BoardAccessor.DeepCopy(context);
+            Assert.AreEqual(context, _context);
+
+            _context.TurnCount = 6;
+            _context.Turn = Disc.Color.White;
+            _context.Black = 11;
+            _context.White = 21;
+            Assert.AreNotEqual(context.TurnCount, _context.TurnCount);
+            Assert.AreNotEqual(context.Turn, _context.Turn);
+            Assert.AreNotEqual(context.Black, _context.Black);
+            Assert.AreNotEqual(context.White, _context.White);
+        }
+
+        [TestMethod]
+        public void 盤状態をディープコピーできる()
+        {
+            var context = new BoardContext
+            {
+                Black = 10,
+                White = 20
+            };
+            var _context = BoardAccessor.DeepCopy(context);
+            Assert.AreEqual(context, _context);
+
+            _context.Black = 11;
+            _context.White = 21;
+            Assert.AreNotEqual(context.Black, _context.Black);
+            Assert.AreNotEqual(context.White, _context.White);
+        }
     }
 }
