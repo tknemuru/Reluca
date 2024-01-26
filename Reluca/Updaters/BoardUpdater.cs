@@ -1,5 +1,6 @@
 ﻿using Reluca.Accessors;
 using Reluca.Contexts;
+using Reluca.Converters;
 using Reluca.Models;
 using System;
 using System.Collections.Generic;
@@ -13,34 +14,34 @@ namespace Reluca.Updaters
     /// <summary>
     /// 指し手による盤の更新機能を提供します。
     /// </summary>
-    public class BoardUpdater : IGameContextUpdatable
+    public class BoardUpdater : IUpdatable<GameContext, bool>
     {
         /// <summary>
         /// 指し手による盤の更新を行います。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
-        public void Update(GameContext context)
+        /// <returns>有効な指し手であるかどうか</returns>
+        public bool Update(GameContext context)
         {
             Debug.Assert(context != null);
             Debug.Assert(context.Move >= 0);
             Debug.Assert(context.Turn != Disc.Color.Undefined);
 
+            var validMove = false;
             var i = context.Move;
             var turn = BoardAccessor.GetTurnDiscs(context);
             var opposite = BoardAccessor.GetOppositeDiscs(context);
             // 指し手の場所に既に石が配置済であれば何もせず終了
             if (BoardAccessor.ExistsDisc(context, i))
             {
-                return;
+                return validMove;
             }
-
-            // 指し手を配置する
-            turn |= 1ul << i;
 
             // 反対色の石を裏返していく
             var tmpTurn = turn;
             var tmpOppsite = opposite;
             var valid = false;
+            var hasReversed = false;
             var index = i + 1;
             int startLine = index / Board.Length;
             int currentLine = startLine;
@@ -52,8 +53,13 @@ namespace Reluca.Updaters
                 {
                     break;
                 }
-                // 自石が存在したら成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index))
+                // 一つ以上反対の色が存在して裏返したか
+                if (BoardAccessor.ExistsOppsositeDisc(context, index))
+                {
+                    hasReversed = true;
+                }
+                // 自石が存在して一つ以上裏返し済であれば成立して終了
+                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
                 {
                     valid = true;
                     break;
@@ -67,12 +73,14 @@ namespace Reluca.Updaters
             {
                 turn = tmpTurn;
                 opposite = tmpOppsite;
+                validMove = true;
             }
 
             // 左
             tmpTurn = turn;
             tmpOppsite = opposite;
             valid = false;
+            hasReversed = false;
             index = i - 1;
             currentLine = startLine;
             while (currentLine == startLine)
@@ -82,8 +90,13 @@ namespace Reluca.Updaters
                 {
                     break;
                 }
-                // 自石が存在したら成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index))
+                // 一つ以上反対の色が存在して裏返したか
+                if (BoardAccessor.ExistsOppsositeDisc(context, index))
+                {
+                    hasReversed = true;
+                }
+                // 自石が存在して一つ以上裏返し済であれば成立して終了
+                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
                 {
                     valid = true;
                     break;
@@ -97,12 +110,14 @@ namespace Reluca.Updaters
             {
                 turn = tmpTurn;
                 opposite = tmpOppsite;
+                validMove = true;
             }
 
             // 上
             tmpTurn = turn;
             tmpOppsite = opposite;
             valid = false;
+            hasReversed = false;
             index = i - Board.Length;
             while (index >= 0)
             {
@@ -111,8 +126,13 @@ namespace Reluca.Updaters
                 {
                     break;
                 }
-                // 自石が存在したら成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index))
+                // 一つ以上反対の色が存在して裏返したか
+                if (BoardAccessor.ExistsOppsositeDisc(context, index))
+                {
+                    hasReversed = true;
+                }
+                // 自石が存在して一つ以上裏返し済であれば成立して終了
+                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
                 {
                     valid = true;
                     break;
@@ -125,12 +145,14 @@ namespace Reluca.Updaters
             {
                 turn = tmpTurn;
                 opposite = tmpOppsite;
+                validMove = true;
             }
 
             // 下
             tmpTurn = turn;
             tmpOppsite = opposite;
             valid = false;
+            hasReversed = false;
             index = i + Board.Length;
             while (index < Board.AllLength)
             {
@@ -139,8 +161,13 @@ namespace Reluca.Updaters
                 {
                     break;
                 }
-                // 自石が存在したら成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index))
+                // 一つ以上反対の色が存在して裏返したか
+                if (BoardAccessor.ExistsOppsositeDisc(context, index))
+                {
+                    hasReversed = true;
+                }
+                // 自石が存在して一つ以上裏返し済であれば成立して終了
+                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
                 {
                     valid = true;
                     break;
@@ -153,12 +180,14 @@ namespace Reluca.Updaters
             {
                 turn = tmpTurn;
                 opposite = tmpOppsite;
+                validMove = true;
             }
 
             // 右上
             tmpTurn = turn;
             tmpOppsite = opposite;
             valid = false;
+            hasReversed = false;
             index = i + 1 - Board.Length;
             while (index >= 0)
             {
@@ -167,8 +196,13 @@ namespace Reluca.Updaters
                 {
                     break;
                 }
-                // 自石が存在したら成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index))
+                // 一つ以上反対の色が存在して裏返したか
+                if (BoardAccessor.ExistsOppsositeDisc(context, index))
+                {
+                    hasReversed = true;
+                }
+                // 自石が存在して一つ以上裏返し済であれば成立して終了
+                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
                 {
                     valid = true;
                     break;
@@ -182,12 +216,14 @@ namespace Reluca.Updaters
             {
                 turn = tmpTurn;
                 opposite = tmpOppsite;
+                validMove = true;
             }
 
             // 左下
             tmpTurn = turn;
             tmpOppsite = opposite;
             valid = false;
+            hasReversed = false;
             index = i - 1 + Board.Length;
             var orgColIndex = -1;
             if (index < Board.AllLength)
@@ -201,8 +237,13 @@ namespace Reluca.Updaters
                 {
                     break;
                 }
-                // 自石が存在したら成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index))
+                // 一つ以上反対の色が存在して裏返したか
+                if (BoardAccessor.ExistsOppsositeDisc(context, index))
+                {
+                    hasReversed = true;
+                }
+                // 自石が存在して一つ以上裏返し済であれば成立して終了
+                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
                 {
                     valid = true;
                     break;
@@ -216,12 +257,14 @@ namespace Reluca.Updaters
             {
                 turn = tmpTurn;
                 opposite = tmpOppsite;
+                validMove = true;
             }
 
             // 左上
             tmpTurn = turn;
             tmpOppsite = opposite;
             valid = false;
+            hasReversed = false;
             index = i - 1 - Board.Length;
             while (index >= 0)
             {
@@ -230,8 +273,13 @@ namespace Reluca.Updaters
                 {
                     break;
                 }
-                // 自石が存在したら成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index))
+                // 一つ以上反対の色が存在して裏返したか
+                if (BoardAccessor.ExistsOppsositeDisc(context, index))
+                {
+                    hasReversed = true;
+                }
+                // 自石が存在して一つ以上裏返し済であれば成立して終了
+                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
                 {
                     valid = true;
                     break;
@@ -245,12 +293,14 @@ namespace Reluca.Updaters
             {
                 turn = tmpTurn;
                 opposite = tmpOppsite;
+                validMove = true;
             }
 
             // 右下
             tmpTurn = turn;
             tmpOppsite = opposite;
             valid = false;
+            hasReversed = false;
             index = i + 1 + Board.Length;
             orgColIndex = 99;
             if (index < Board.AllLength)
@@ -264,8 +314,13 @@ namespace Reluca.Updaters
                 {
                     break;
                 }
-                // 自石が存在したら成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index))
+                // 一つ以上反対の色が存在して裏返したか
+                if (BoardAccessor.ExistsOppsositeDisc(context, index))
+                {
+                    hasReversed = true;
+                }
+                // 自石が存在して一つ以上裏返し済であれば成立して終了
+                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
                 {
                     valid = true;
                     break;
@@ -279,11 +334,20 @@ namespace Reluca.Updaters
             {
                 turn = tmpTurn;
                 opposite = tmpOppsite;
+                validMove = true;
+            }
+
+            if (validMove)
+            {
+                // 有効な指し手であれば、最後に指し手自体を配置する
+                turn |= 1ul << context.Move;
             }
 
             // 結果をコンテキストに反映
             BoardAccessor.SetTurnDiscs(context, turn);
             BoardAccessor.SetOppositeDiscs(context, opposite);
+
+            return validMove;
         }
     }
 }
