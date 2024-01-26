@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Reluca.Contexts;
 using Reluca.Converters;
+using Reluca.Services;
 using Reluca.Updaters;
 using System;
 using System.Collections.Generic;
@@ -53,6 +54,7 @@ namespace Reluca.Di
             services.AddSingleton<MoveAndReverseUpdater, MoveAndReverseUpdater>();
             services.AddSingleton<MobilityUpdater, MobilityUpdater>();
             services.AddSingleton<InitializeUpdater, InitializeUpdater>();
+            services.AddSingleton<GameEndJudge, GameEndJudge>();
             var provider = services.BuildServiceProvider();
             return provider;
         }

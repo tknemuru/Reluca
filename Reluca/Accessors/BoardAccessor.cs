@@ -209,5 +209,41 @@ namespace Reluca.Accessors
             var row = index / Board.Length;
             return ColumnPositions.Substring(col, 1) + RowPositions.Substring(row, 1);
         }
+
+        /// <summary>
+        /// ターンを逆の色に変更します。
+        /// </summary>
+        /// <param name="context">ゲーム状態</param>
+        public static void ChangeOppositeTurn(GameContext context)
+        {
+            Debug.Assert(context.Turn != Disc.Color.Undefined, "ターンが不確定");
+            if (context.Turn == Disc.Color.Black)
+            {
+                context.Turn = Disc.Color.White;
+            } else
+            {
+                context.Turn -= Disc.Color.Black;
+            }
+        }
+
+        /// <summary>
+        /// ゲーム状態をディープコピーします。
+        /// </summary>
+        /// <param name="context">ゲーム状態</param>
+        /// <returns>ディープコピーしたゲーム状態</returns>
+        public static GameContext DeepCopy(GameContext context)
+        {
+            return context with { Board = context.Board with { } };
+        }
+
+        /// <summary>
+        /// 盤状態をディープコピーします。
+        /// </summary>
+        /// <param name="context">盤状態</param>
+        /// <returns>ディープコピーした盤状態</returns>
+        public static BoardContext DeepCopy(BoardContext context)
+        {
+            return context with { };
+        }
     }
 }
