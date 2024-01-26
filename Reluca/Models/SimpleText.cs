@@ -32,6 +32,14 @@ namespace Reluca.Models
         public static class Key
         {
             /// <summary>
+            /// ターン数
+            /// </summary>
+            public const string TurnCount = "ターン数";
+            /// <summary>
+            /// ステージ
+            /// </summary>
+            public const string Stage = "ステージ";
+            /// <summary>
             /// ターン
             /// </summary>
             public const string Turn = "ターン";

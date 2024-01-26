@@ -34,6 +34,12 @@ namespace Reluca.Converters
 
                 switch (keyValue[0])
                 {
+                    case SimpleText.Key.TurnCount:
+                        context.TurnCount = int.Parse(keyValue[1]);
+                        break;
+                    case SimpleText.Key.Stage:
+                        context.Stage = int.Parse(keyValue[1]);
+                        break;
                     case SimpleText.Key.Turn:
                         if (keyValue[1] == Disc.ColorName.Black)
                         {

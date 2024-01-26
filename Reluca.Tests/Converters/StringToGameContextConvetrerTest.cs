@@ -22,6 +22,8 @@ namespace Reluca.Tests.Converters
         {
             var expected = new GameContext
             {
+                TurnCount = 5,
+                Stage = 3,
                 Turn = Disc.Color.Black,
                 Move = 35,
                 Black = 0b00100010_00010001_10001000_01000100_00100010_00010001_10001000_01000100,
