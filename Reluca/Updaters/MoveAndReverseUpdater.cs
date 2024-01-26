@@ -12,9 +12,9 @@ using System.Threading.Tasks;
 namespace Reluca.Updaters
 {
     /// <summary>
-    /// 指し手による盤の更新機能を提供します。
+    /// 指し手による石の裏返し更新機能を提供します。
     /// </summary>
-    public class BoardUpdater : IUpdatable<GameContext, bool>
+    public class MoveAndReverseUpdater : IUpdatable<GameContext, bool>
     {
         /// <summary>
         /// 指し手による盤の更新を行います。

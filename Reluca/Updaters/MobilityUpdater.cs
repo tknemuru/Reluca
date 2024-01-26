@@ -28,7 +28,7 @@ namespace Reluca.Updaters
             Debug.Assert(context.Turn != Disc.Color.Undefined);
 
             var validResults = new Dictionary<int, GameContext>();
-            var updater = DiProvider.Get().GetService<BoardUpdater>();
+            var updater = DiProvider.Get().GetService<MoveAndReverseUpdater>();
             for (var i = 0; i < Board.AllLength; i++)
             {
                 var orgBoard = context.Board with { };
