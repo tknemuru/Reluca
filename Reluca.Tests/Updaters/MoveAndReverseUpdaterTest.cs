@@ -9,10 +9,10 @@ namespace Reluca.Tests.Updaters
 {
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
     /// <summary>
-    /// BoardUpdaterの単体テスト機能を提供します。
+    /// MoveAndReverseUpdaterの単体テスト機能を提供します。
     /// </summary>
     [TestClass]
-    public class BoardUpdaterTest : BaseUnitTest<BoardUpdater>
+    public class MoveAndReverseUpdaterTest : BaseUnitTest<MoveAndReverseUpdater>
     {
         [TestMethod]
         public void 指し手によって石を裏返すことができる()
