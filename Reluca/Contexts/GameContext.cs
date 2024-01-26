@@ -41,6 +41,16 @@ namespace Reluca.Contexts
         public ulong Mobility { get; set; }
 
         /// <summary>
+        /// ターン数
+        /// </summary>
+        public int TurnCount { get; set; }
+
+        /// <summary>
+        /// ステージ
+        /// </summary>
+        public int Stage {  get; set; }
+
+        /// <summary>
         /// ターン
         /// </summary>
         public Disc.Color Turn { get; set; }
@@ -55,6 +65,8 @@ namespace Reluca.Contexts
         /// </summary>
         public GameContext()
         {
+            TurnCount = -1;
+            Stage = -1;
             Board = new BoardContext();
             Turn = Disc.Color.Undefined;
             Move = -1;

@@ -23,6 +23,20 @@ namespace Reluca.Converters
         public string Convert(GameContext input)
         {
             var sb = new StringBuilder();
+
+            // ターン数
+            if (input.TurnCount > 0)
+            {
+                sb.AppendLine($"{SimpleText.Key.TurnCount}{SimpleText.KeyValueSeparator}{input.TurnCount}");
+            }
+
+            // ステージ
+            if (input.Stage > 0)
+            {
+                sb.AppendLine($"{SimpleText.Key.Stage}{SimpleText.KeyValueSeparator}{input.Stage}");
+            }
+
+            // ターン
             var turn = string.Empty;
             if (input.Turn == Disc.Color.Black)
             {
@@ -36,10 +50,14 @@ namespace Reluca.Converters
             {
                 sb.AppendLine($"{SimpleText.Key.Turn}{SimpleText.KeyValueSeparator}{turn}");
             }
+
+            // 指し手
             if (input.Move > 0)
             {
                 sb.AppendLine($"{SimpleText.Key.Move}{SimpleText.KeyValueSeparator}{BoardAccessor.ToPosition(input.Move)}");
             }
+
+            // 盤
             sb.AppendLine($"{SimpleText.Key.Board}{SimpleText.KeyValueSeparator}");
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
             sb.Append(DiProvider.Get().GetService<MobilityBoardToStringConverter>().Convert(input));

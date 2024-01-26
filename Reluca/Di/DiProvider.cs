@@ -52,6 +52,7 @@ namespace Reluca.Di
             services.AddSingleton<GameContextToStringConverter, GameContextToStringConverter>();
             services.AddSingleton<MoveAndReverseUpdater, MoveAndReverseUpdater>();
             services.AddSingleton<MobilityUpdater, MobilityUpdater>();
+            services.AddSingleton<InitializeUpdater, InitializeUpdater>();
             var provider = services.BuildServiceProvider();
             return provider;
         }
