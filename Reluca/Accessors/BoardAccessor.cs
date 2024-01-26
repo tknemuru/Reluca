@@ -26,6 +26,27 @@ namespace Reluca.Accessors
         private const string RowPositions = "12345678";
 
         /// <summary>
+        /// 盤に石を置きます。
+        /// 配置先が指し手として有効であるかは確認しません。
+        /// </summary>
+        /// <param name="context">盤状態</param>
+        /// <param name="color">配置する石の色</param>
+        /// <param name="index">配置先インデックス</param>
+        public static void SetDisc(BoardContext context, Disc.Color color, int index)
+        {
+            if (color == Disc.Color.Black)
+            {
+                context.Black |= 1ul << index;
+                return;
+            }
+            if (color == Disc.Color.White)
+            {
+                context.White |= 1ul << index;
+                return;
+            }
+        }
+
+        /// <summary>
         /// 0～63のインデックスをもとに列インデックスを取得します。
         /// </summary>
         /// <param name="index">マス目のインデックス</param>
@@ -43,7 +64,7 @@ namespace Reluca.Accessors
         /// <returns>行インデックス</returns>
         public static int GetRowIndex(int index)
         {
-            Debug.Assert(index >= 0 && index < Board.AllLength);
+            Debug.Assert(index >= 0 && index < Board.AllLength, $"{index}");
             return index / Board.Length;
         }
 
@@ -183,7 +204,7 @@ namespace Reluca.Accessors
         /// <returns>位置を示す文字列（【例】d2）</returns>
         public static string ToPosition(int index)
         {
-            Debug.Assert(index >= 0 && index < Board.AllLength);
+            Debug.Assert(index >= 0 && index < Board.AllLength, $"{index}");
             var col = index % Board.Length;
             var row = index / Board.Length;
             return ColumnPositions.Substring(col, 1) + RowPositions.Substring(row, 1);

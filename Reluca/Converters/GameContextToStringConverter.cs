@@ -32,8 +32,14 @@ namespace Reluca.Converters
             {
                 turn = Disc.ColorName.White;
             }
-            sb.AppendLine($"{SimpleText.Key.Turn}{SimpleText.KeyValueSeparator}{turn}");
-            sb.AppendLine($"{SimpleText.Key.Move}{SimpleText.KeyValueSeparator}{BoardAccessor.ToPosition(input.Move)}");
+            if (turn != string.Empty)
+            {
+                sb.AppendLine($"{SimpleText.Key.Turn}{SimpleText.KeyValueSeparator}{turn}");
+            }
+            if (input.Move > 0)
+            {
+                sb.AppendLine($"{SimpleText.Key.Move}{SimpleText.KeyValueSeparator}{BoardAccessor.ToPosition(input.Move)}");
+            }
             sb.AppendLine($"{SimpleText.Key.Board}{SimpleText.KeyValueSeparator}");
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
             sb.Append(DiProvider.Get().GetService<MobilityBoardToStringConverter>().Convert(input));

@@ -191,5 +191,18 @@ namespace Reluca.Tests.Accessors
             Assert.AreEqual("a2", BoardAccessor.ToPosition(8));
             Assert.AreEqual("h8", BoardAccessor.ToPosition(63));
         }
+
+        [TestMethod]
+        public void 盤に石を置ける()
+        {
+            var context = new BoardContext();
+            BoardAccessor.SetDisc(context, Disc.Color.Black, BoardAccessor.ToIndex("h1"));
+            BoardAccessor.SetDisc(context, Disc.Color.Black, BoardAccessor.ToIndex("d2"));
+            BoardAccessor.SetDisc(context, Disc.Color.Black, BoardAccessor.ToIndex("h8"));
+
+            BoardAccessor.SetDisc(context, Disc.Color.White, BoardAccessor.ToIndex("a1"));
+            BoardAccessor.SetDisc(context, Disc.Color.White, BoardAccessor.ToIndex("e5"));
+            BoardAccessor.SetDisc(context, Disc.Color.White, BoardAccessor.ToIndex("a8"));
+        }
     }
 }
