@@ -9,6 +9,29 @@ namespace Reluca.Models
     public static class Board
     {
         /// <summary>
+        /// 状態
+        /// </summary>
+        public enum Status
+        {
+            /// <summary>
+            /// 空
+            /// </summary>
+            Empty,
+            /// <summary>
+            /// 配置可能
+            /// </summary>
+            Mobility,
+            /// <summary>
+            /// 黒
+            /// </summary>
+            Black,
+            /// <summary>
+            /// 白
+            /// </summary>
+            White
+        }
+
+        /// <summary>
         /// 状態を示すアイコン
         /// </summary>
         public static class Icon

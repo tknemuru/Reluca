@@ -26,6 +26,31 @@ namespace Reluca.Accessors
         private const string RowPositions = "12345678";
 
         /// <summary>
+        /// 指定したインデックスの状態を取得します。
+        /// </summary>
+        /// <param name="context">ゲーム状態</param>
+        /// <param name="index">インデックス</param>
+        /// <returns>状態</returns>
+        public static Board.Status GetState(GameContext context, int index)
+        {
+            Debug.Assert(index >= 0 && index < Board.AllLength, $"{index}");
+
+            if ((context.Black & (1ul << index)) > 0)
+            {
+                return Board.Status.Black;
+            }
+            if ((context.Mobility & (1ul << index)) > 0)
+            {
+                return Board.Status.Mobility;
+            }
+            if ((context.White & (1ul << index)) > 0)
+            {
+                return Board.Status.White;
+            }
+            return Board.Status.Empty;
+        }
+
+        /// <summary>
         /// 盤に石を置きます。
         /// 配置先が指し手として有効であるかは確認しません。
         /// </summary>
@@ -34,6 +59,8 @@ namespace Reluca.Accessors
         /// <param name="index">配置先インデックス</param>
         public static void SetDisc(BoardContext context, Disc.Color color, int index)
         {
+            Debug.Assert(index >= 0 && index < Board.AllLength, $"{index}");
+
             if (color == Disc.Color.Black)
             {
                 context.Black |= 1ul << index;
