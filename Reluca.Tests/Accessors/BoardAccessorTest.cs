@@ -232,6 +232,47 @@ namespace Reluca.Tests.Accessors
         }
 
         [TestMethod]
+        public void 指定した色の石の数を算出できる()
+        {
+            var contexts = UnitTestHelper.CreateMultipleBoardContexts(TargetName, 2, 1, ResourceType.In);
+
+            // 1
+            var context = contexts[0];
+            var count = BoardAccessor.GetDiscCount(context, Disc.Color.Black);
+            Assert.AreEqual(2, count);
+            count = BoardAccessor.GetDiscCount(context, Disc.Color.White);
+            Assert.AreEqual(10, count);
+
+            // 2
+            context = contexts[1];
+            count = BoardAccessor.GetDiscCount(context, Disc.Color.Black);
+            Assert.AreEqual(10, count);
+            count = BoardAccessor.GetDiscCount(context, Disc.Color.White);
+            Assert.AreEqual(2, count);
+
+            // 3
+            context = contexts[2];
+            count = BoardAccessor.GetDiscCount(context, Disc.Color.Black);
+            Assert.AreEqual(0, count);
+            count = BoardAccessor.GetDiscCount(context, Disc.Color.White);
+            Assert.AreEqual(12, count);
+
+            // 4
+            context = contexts[3];
+            count = BoardAccessor.GetDiscCount(context, Disc.Color.Black);
+            Assert.AreEqual(12, count);
+            count = BoardAccessor.GetDiscCount(context, Disc.Color.White);
+            Assert.AreEqual(0, count);
+
+            // 5
+            context = contexts[4];
+            count = BoardAccessor.GetDiscCount(context, Disc.Color.Black);
+            Assert.AreEqual(0, count);
+            count = BoardAccessor.GetDiscCount(context, Disc.Color.White);
+            Assert.AreEqual(0, count);
+        }
+
+        [TestMethod]
         public void ゲーム状態をディープコピーできる()
         {
             var context = new GameContext

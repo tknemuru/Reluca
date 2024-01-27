@@ -46,14 +46,14 @@ namespace Reluca.Tests
         }
 
         /// <summary>
-        /// リソースファイルから盤状態を作成します。
+        /// リソースファイルからゲーム状態を作成します。
         /// </summary>
         /// <param name="targetName">テスト対象クラス名</param>
         /// <param name="index">インデックス</param>
         /// <param name="childIndex">子インデックス</param>
         /// <param name="type">リソース種別</param>
         /// <param name="extension">拡張子</param>
-        /// <returns>盤状態</returns>
+        /// <returns>ゲーム状態</returns>
         public static GameContext CreateGameContext(string targetName, int index, int childIndex, ResourceType type, string extension = "txt")
         {
             return DiProvider.Get().GetService<StringToGameContextConverter>().Convert(FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type)));
@@ -68,6 +68,41 @@ namespace Reluca.Tests
         /// <param name="type">リソース種別</param>
         /// <param name="extension">拡張子</param>
         /// <returns>盤状態のリスト</returns>
+        public static List<BoardContext> CreateMultipleBoardContexts(string targetName, int index, int childIndex, ResourceType type, string extension = "txt")
+        {
+            var contexts = new List<BoardContext>();
+            var lines = FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type));
+            var unit = new List<string>();
+            foreach (var value in lines)
+            {
+                var val = value.Trim();
+                if (value.Contains(SimpleText.ContextSeparator) || val == string.Empty)
+                {
+                    if (unit.Count > 0)
+                    {
+                        contexts.Add(DiProvider.Get().GetService<StringToBoardContextConverter>().Convert(unit));
+                    }
+                    unit.Clear();
+                    continue;
+                }
+                unit.Add(val);
+            }
+            if (unit.Count > 0)
+            {
+                contexts.Add(DiProvider.Get().GetService<StringToBoardContextConverter>().Convert(unit));
+            }
+            return contexts;
+        }
+
+        /// <summary>
+        /// リソースファイルから複数のゲーム状態を作成します。
+        /// </summary>
+        /// <param name="targetName">テスト対象クラス名</param>
+        /// <param name="index">インデックス</param>
+        /// <param name="childIndex">子インデックス</param>
+        /// <param name="type">リソース種別</param>
+        /// <param name="extension">拡張子</param>
+        /// <returns>ゲーム状態のリスト</returns>
         public static List<GameContext> CreateMultipleGameContexts(string targetName, int index, int childIndex, ResourceType type, string extension = "txt")
         {
             var contexts = new List<GameContext>();

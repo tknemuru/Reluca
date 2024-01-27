@@ -249,8 +249,30 @@ namespace Reluca.Accessors
                 context.Turn = Disc.Color.White;
             } else
             {
-                context.Turn -= Disc.Color.Black;
+                context.Turn = Disc.Color.Black;
             }
+        }
+
+        /// <summary>
+        /// 指定した色の石の数を算出します。
+        /// </summary>
+        /// <param name="context">盤状態</param>
+        /// <param name="color">算出対象の色</param>
+        /// <returns>石の数</returns>
+        public static int GetDiscCount(BoardContext context, Disc.Color color)
+        {
+            Debug.Assert(color != Disc.Color.Undefined, "算出対象色が未確定");
+
+            var result = 0;
+            var target = color == Disc.Color.Black ? context.Black : context.White;
+            for (var i = 0; i < Board.AllLength; i++)
+            {
+                if ((target & (1ul << i)) > 0)
+                {
+                    result++;
+                }
+            }
+            return result;
         }
 
         /// <summary>
