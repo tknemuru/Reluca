@@ -74,6 +74,8 @@ namespace Reluca.Ui.WinForms
         private void UpdateForm()
         {
             DiProvider.Get().GetService<MobilityUpdater>().Update(Context);
+            BlackDiscCountLabel.Text = BoardAccessor.GetDiscCount(Context.Board, Disc.Color.Black).ToString();
+            WhiteDiscCountLabel.Text = BoardAccessor.GetDiscCount(Context.Board, Disc.Color.White).ToString();
             foreach (var picture in DiscPictures)
             {
                 var index = int.Parse(picture.Name.Replace(DiscPictureNamePrefix, string.Empty));
