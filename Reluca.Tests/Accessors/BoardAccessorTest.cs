@@ -15,6 +15,21 @@ namespace Reluca.Tests.Accessors
     [TestClass]
     public class BoardAccessorTest
     {
+        /// <summary>
+        /// テスト対象のクラス名
+        /// </summary>
+        private const string TargetName = "BoardAccessor";
+
+        [TestMethod]
+        public void 指定したインデックスの状態が取得できる()
+        {
+            var context = UnitTestHelper.CreateGameContext(TargetName, 1, 1, ResourceType.In);
+            Assert.AreEqual(Board.Status.Empty, BoardAccessor.GetState(context, BoardAccessor.ToIndex("a1")));
+            Assert.AreEqual(Board.Status.Mobility, BoardAccessor.GetState(context, BoardAccessor.ToIndex("d3")));
+            Assert.AreEqual(Board.Status.Black, BoardAccessor.GetState(context, BoardAccessor.ToIndex("e4")));
+            Assert.AreEqual(Board.Status.White, BoardAccessor.GetState(context, BoardAccessor.ToIndex("d4")));
+        }
+
         [TestMethod]
         public void 列インデックスが取得できる()
         {

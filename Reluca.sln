@@ -3,13 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.8.34330.188
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reluca", "Reluca\Reluca.csproj", "{D38C7B47-FFBD-4FFC-9038-268C27D5B2F2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Reluca", "Reluca\Reluca.csproj", "{D38C7B47-FFBD-4FFC-9038-268C27D5B2F2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reluca.Tests", "Reluca.Tests\Reluca.Tests.csproj", "{7D7BC4C7-8AF9-4228-9C21-6F0EEBDA6091}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Reluca.Tests", "Reluca.Tests\Reluca.Tests.csproj", "{7D7BC4C7-8AF9-4228-9C21-6F0EEBDA6091}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reluca.Tools", "Reluca.Tools\Reluca.Tools.csproj", "{8E1705E6-52FA-4350-9A78-DD52D098FDA4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Reluca.Tools", "Reluca.Tools\Reluca.Tools.csproj", "{8E1705E6-52FA-4350-9A78-DD52D098FDA4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reluca.Tools.Tests", "Reluca.Tools.Tests\Reluca.Tools.Tests.csproj", "{32E87CF1-A2C6-4BD7-A5DA-92A9DFB371FC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Reluca.Tools.Tests", "Reluca.Tools.Tests\Reluca.Tools.Tests.csproj", "{32E87CF1-A2C6-4BD7-A5DA-92A9DFB371FC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Reluca.Ui.WinForms", "Reluca.Ui.WinForms\Reluca.Ui.WinForms.csproj", "{4AC160F9-8942-4E48-B80F-4C4DD4D9F1AA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +35,10 @@ Global
 		{32E87CF1-A2C6-4BD7-A5DA-92A9DFB371FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{32E87CF1-A2C6-4BD7-A5DA-92A9DFB371FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{32E87CF1-A2C6-4BD7-A5DA-92A9DFB371FC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4AC160F9-8942-4E48-B80F-4C4DD4D9F1AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4AC160F9-8942-4E48-B80F-4C4DD4D9F1AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4AC160F9-8942-4E48-B80F-4C4DD4D9F1AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4AC160F9-8942-4E48-B80F-4C4DD4D9F1AA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

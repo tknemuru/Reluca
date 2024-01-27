@@ -33,8 +33,8 @@ namespace Reluca.Tests
         protected BaseUnitTest()
         {
             Target = DiProvider.Get().GetService<T>();
-            Debug.Assert(Target != null);
         }
+
 
         /// <summary>
         /// リソースのパスを取得します。
@@ -46,7 +46,7 @@ namespace Reluca.Tests
         /// <returns>リソースパス</returns>
         protected string GetResourcePath(int index, int childIndex, ResourceType type, string extension = "txt")
         {
-            return $"../../../Resources/{Target.GetType().Name}/{index.ToString().PadLeft(3, '0')}-{childIndex.ToString().PadLeft(3, '0')}-{type.ToString().ToLower()}.{extension}";
+            return UnitTestHelper.GetResourcePath(Target.GetType().Name, index, childIndex, type, extension);
         }
 
         /// <summary>
@@ -59,7 +59,7 @@ namespace Reluca.Tests
         /// <returns>盤状態</returns>
         protected BoardContext CreateBoardContext(int index, int childIndex, ResourceType type, string extension = "txt")
         {
-            return DiProvider.Get().GetService<StringToBoardContextConverter>().Convert(FileHelper.ReadTextLines(GetResourcePath(index, childIndex, type)));
+            return UnitTestHelper.CreateBoardContext(Target.GetType().Name, index, childIndex, type, extension);
         }
 
         /// <summary>
@@ -72,7 +72,7 @@ namespace Reluca.Tests
         /// <returns>盤状態</returns>
         protected GameContext CreateGameContext(int index, int childIndex, ResourceType type, string extension = "txt")
         {
-            return DiProvider.Get().GetService<StringToGameContextConverter>().Convert(FileHelper.ReadTextLines(GetResourcePath(index, childIndex, type)));
+            return UnitTestHelper.CreateGameContext(Target.GetType().Name, index, childIndex, type, extension);
         }
 
         /// <summary>
@@ -85,28 +85,7 @@ namespace Reluca.Tests
         /// <returns>盤状態のリスト</returns>
         protected List<GameContext> CreateMultipleGameContexts(int index, int childIndex, ResourceType type, string extension = "txt")
         {
-            var contexts = new List<GameContext>();
-            var lines = FileHelper.ReadTextLines(GetResourcePath(index, childIndex, type));
-            var unit = new List<string>();
-            foreach (var value in lines)
-            {
-                var val = value.Trim();
-                if (value.Contains(SimpleText.ContextSeparator) || val == string.Empty)
-                {
-                    if (unit.Count > 0)
-                    {
-                        contexts.Add(DiProvider.Get().GetService<StringToGameContextConverter>().Convert(unit));
-                    }
-                    unit.Clear();
-                    continue;
-                }
-                unit.Add(val);
-            }
-            if (unit.Count > 0)
-            {
-                contexts.Add(DiProvider.Get().GetService<StringToGameContextConverter>().Convert(unit));
-            }
-            return contexts;
+            return UnitTestHelper.CreateMultipleGameContexts(Target.GetType().Name, index, childIndex, type, extension);
         }
 
         /// <summary>
@@ -116,11 +95,7 @@ namespace Reluca.Tests
         /// <param name="actual">実際のゲーム状態</param>
         protected void AssertEqualGameContext(GameContext expected, GameContext actual)
         {
-            var expectedStr = DiProvider.Get().GetService<GameContextToStringConverter>().Convert(expected);
-            var acutualStr = DiProvider.Get().GetService<GameContextToStringConverter>().Convert(actual);
-            Assert.AreEqual(expectedStr, acutualStr);
-            // 念のため生の状態も検証しておく
-            Assert.AreEqual(expected, actual);
+            UnitTestHelper.AssertEqualGameContext(expected, actual);
         }
     }
 }
