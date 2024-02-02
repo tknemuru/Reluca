@@ -42,12 +42,17 @@ namespace Reluca.Updaters
             var tmpOppsite = opposite;
             var valid = false;
             var hasReversed = false;
-            var index = i + 1;
-            int startLine = index / Board.Length;
-            int currentLine = startLine;
+            //var index = i + 1;
+            //int startLine = index / Board.Length;
+            //int currentLine = startLine;
+            var index = i;
             // 右
-            while (currentLine == startLine)
+            while (BoardAccessor.GetColumnIndex(index) != 7)
             {
+                index++;
+                tmpTurn |= 1ul << index;
+                tmpOppsite &= ~(1ul << index);
+
                 // 空マスが存在したら不成立
                 if (!BoardAccessor.ExistsDisc(context, index))
                 {
@@ -58,16 +63,17 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
-                tmpTurn |= 1ul << index;
-                tmpOppsite &= ~(1ul << index);
-                index++;
-                currentLine = index / Board.Length;
+                //currentLine = index / Board.Length;
             }
             if (valid)
             {
@@ -95,10 +101,14 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
                 tmpTurn |= 1ul << index;
@@ -131,10 +141,14 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
                 tmpTurn |= 1ul << index;
@@ -166,10 +180,14 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
                 tmpTurn |= 1ul << index;
@@ -201,10 +219,14 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
                 tmpTurn |= 1ul << index;
@@ -242,10 +264,14 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
                 tmpTurn |= 1ul << index;
@@ -278,10 +304,14 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
                 tmpTurn |= 1ul << index;
@@ -319,10 +349,14 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
                 tmpTurn |= 1ul << index;

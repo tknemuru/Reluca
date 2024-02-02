@@ -37,5 +37,29 @@ namespace Reluca.Tests.Updaters
                 AssertEqualGameContext(expecteds[i], actuals[i]);
             }
         }
+
+        [TestMethod]
+        public void 自石が隣接している場合は裏返せない()
+        {
+            var expecteds = CreateMultipleGameContexts(3, 1, ResourceType.Out);
+            var actuals = CreateMultipleGameContexts(3, 1, ResourceType.In);
+            for (var i = 0; i < expecteds.Count; i++)
+            {
+                Target.Update(actuals[i]);
+                AssertEqualGameContext(expecteds[i], actuals[i]);
+            }
+        }
+
+        [TestMethod]
+        public void 端の指し手が有効であるかを正しく判定できる()
+        {
+            var expecteds = CreateMultipleGameContexts(4, 1, ResourceType.Out);
+            var actuals = CreateMultipleGameContexts(4, 1, ResourceType.In);
+            for (var i = 0; i < expecteds.Count; i++)
+            {
+                Target.Update(actuals[i]);
+                AssertEqualGameContext(expecteds[i], actuals[i]);
+            }
+        }
     }
 }
