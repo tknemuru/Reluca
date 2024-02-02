@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Reluca.Models;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -12,9 +13,25 @@ namespace Reluca.Ui.WinForms
 {
     public partial class StartForm : Form
     {
+        /// <summary>
+        /// 盤フォーム
+        /// </summary>
+        private BoardForm BoardForm {  get; set; }
+
+        /// <summary>
+        /// コンストラクタ
+        /// </summary>
         public StartForm()
         {
             InitializeComponent();
+            InfoLabel.Text = string.Empty;
+            BoardForm = new BoardForm();
+        }
+
+        public void ShowResult(string message)
+        {
+            Show();
+            InfoLabel.Text = message;
         }
 
         /// <summary>
@@ -24,8 +41,36 @@ namespace Reluca.Ui.WinForms
         /// <param name="e"></param>
         private void SinglePlayButton_Click(object sender, EventArgs e)
         {
-            var boardForm = new BoardForm();
-            boardForm.ShowDialog();
+            var players = new Dictionary<Disc.Color, Player.Type>()
+            {
+                [Disc.Color.Black] = Player.Type.Human,
+                [Disc.Color.White] = Player.Type.Cpu
+            };
+            BoardForm.Start(this, players);
+            BoardForm.Show();
+        }
+
+        /// <summary>
+        /// 「ふたりで遊ぶ」クリック
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void DoublePlayButton_Click(object sender, EventArgs e)
+        {
+            var players = new Dictionary<Disc.Color, Player.Type>()
+            {
+                [Disc.Color.Black] = Player.Type.Human,
+                [Disc.Color.White] = Player.Type.Human
+            };
+            Hide();
+            BoardForm.Start(this, players);
+            if (BoardForm.Visible)
+            {
+                BoardForm.TopMost = true;
+            } else
+            {
+                BoardForm.ShowDialog();
+            }
         }
     }
 }

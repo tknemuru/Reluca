@@ -311,5 +311,14 @@ namespace Reluca.Tests.Accessors
             Assert.AreNotEqual(context.Black, _context.Black);
             Assert.AreNotEqual(context.White, _context.White);
         }
+
+        [TestMethod]
+        public void インデックスが盤上に収まる妥当な値であるかどうかを判定できる()
+        {
+            Assert.IsFalse(BoardAccessor.IsValidIndex(-1));
+            Assert.IsTrue(BoardAccessor.IsValidIndex(0));
+            Assert.IsTrue(BoardAccessor.IsValidIndex(63));
+            Assert.IsFalse(BoardAccessor.IsValidIndex(64));
+        }
     }
 }
