@@ -74,6 +74,16 @@ namespace Reluca.Accessors
         }
 
         /// <summary>
+        /// インデックスが盤上に収まる妥当な値であるかどうか
+        /// </summary>
+        /// <param name="index">インデックス</param>
+        /// <returns>インデックスが盤上に収まる妥当な値であるかどうか</returns>
+        public static bool IsValidIndex(int index)
+        {
+            return index >= 0 && index < Board.AllLength;
+        }
+
+        /// <summary>
         /// 0～63のインデックスをもとに列インデックスを取得します。
         /// </summary>
         /// <param name="index">マス目のインデックス</param>
