@@ -2,6 +2,7 @@ using Reluca.Accessors;
 using Reluca.Contexts;
 using Reluca.Di;
 using Reluca.Models;
+using Reluca.Movers;
 using Reluca.Updaters;
 using System;
 using System.Reflection;
@@ -71,14 +72,18 @@ namespace Reluca.Ui.WinForms
             Players = players;
             StartForm.Hide();
 
-            if (Players.Values.Contains(Player.Type.Cpu))
+            if (Players.Values.All(p => p == Player.Type.Cpu))
             {
-                BlackPlayerNameLabel.Text = "黒：あなた";
-                WhitePlayerNameLabel.Text = "白：CPU";
-            } else
+                BlackPlayerNameLabel.Text = "黒：CPU1";
+                WhitePlayerNameLabel.Text = "白：CPU2";
+            } else if (Players.Values.All(p => p == Player.Type.Human))
             {
                 BlackPlayerNameLabel.Text = "黒：プレイヤ1";
                 WhitePlayerNameLabel.Text = "白：プレイヤ2";
+            } else
+            {
+                BlackPlayerNameLabel.Text = "黒：あなた";
+                WhitePlayerNameLabel.Text = "白：CPU";
             }
 
             DiscPictures = new List<PictureBox>();
@@ -124,13 +129,12 @@ namespace Reluca.Ui.WinForms
                 }
             }
 
-            //if (Players[Context.Turn] == Player.Type.Cpu)
-            //{
-            //    // TODO: CPUが打つ
-            //    Context.Move = index;
-            //    DiProvider.Get().GetService<MoveAndReverseUpdater>().Update(Context);
-            //    Next();
-            //}
+            if (Players[Context.Turn] == Player.Type.Cpu)
+            {
+                Context.Move = DiProvider.Get().GetService<FindFirstMover>().Move(Context);
+                DiProvider.Get().GetService<MoveAndReverseUpdater>().Update(Context);
+                Next();
+            }
         }
 
         /// <summary>

@@ -16,7 +16,7 @@ namespace Reluca.Ui.WinForms
         /// <summary>
         /// 盤フォーム
         /// </summary>
-        private BoardForm BoardForm {  get; set; }
+        private BoardForm BoardForm { get; set; }
 
         /// <summary>
         /// コンストラクタ
@@ -62,15 +62,24 @@ namespace Reluca.Ui.WinForms
                 [Disc.Color.Black] = Player.Type.Human,
                 [Disc.Color.White] = Player.Type.Human
             };
-            Hide();
             BoardForm.Start(this, players);
-            if (BoardForm.Visible)
+            BoardForm.Show();
+        }
+
+        /// <summary>
+        /// 「対戦をみてる」クリック
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void AutoPlayButton_Click(object sender, EventArgs e)
+        {
+            var players = new Dictionary<Disc.Color, Player.Type>()
             {
-                BoardForm.TopMost = true;
-            } else
-            {
-                BoardForm.ShowDialog();
-            }
+                [Disc.Color.Black] = Player.Type.Cpu,
+                [Disc.Color.White] = Player.Type.Cpu
+            };
+            BoardForm.Start(this, players);
+            BoardForm.Show();
         }
     }
 }

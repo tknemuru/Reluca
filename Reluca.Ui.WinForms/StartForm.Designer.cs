@@ -31,6 +31,7 @@
             SinglePlayButton = new Button();
             DoublePlayButton = new Button();
             InfoLabel = new Label();
+            AutoPlayButton = new Button();
             SuspendLayout();
             // 
             // SinglePlayButton
@@ -47,7 +48,7 @@
             // DoublePlayButton
             // 
             DoublePlayButton.Font = new Font("Yu Gothic UI", 18F);
-            DoublePlayButton.Location = new Point(258, 261);
+            DoublePlayButton.Location = new Point(258, 212);
             DoublePlayButton.Name = "DoublePlayButton";
             DoublePlayButton.Size = new Size(269, 67);
             DoublePlayButton.TabIndex = 1;
@@ -65,11 +66,23 @@
             InfoLabel.Text = "あああああああああ０";
             InfoLabel.TextAlign = ContentAlignment.MiddleCenter;
             // 
+            // AutoPlayButton
+            // 
+            AutoPlayButton.Font = new Font("Yu Gothic UI", 18F);
+            AutoPlayButton.Location = new Point(258, 314);
+            AutoPlayButton.Name = "AutoPlayButton";
+            AutoPlayButton.Size = new Size(269, 67);
+            AutoPlayButton.TabIndex = 3;
+            AutoPlayButton.Text = "対戦をみてる";
+            AutoPlayButton.UseVisualStyleBackColor = true;
+            AutoPlayButton.Click += AutoPlayButton_Click;
+            // 
             // StartForm
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(795, 407);
+            ClientSize = new Size(795, 420);
+            Controls.Add(AutoPlayButton);
             Controls.Add(InfoLabel);
             Controls.Add(DoublePlayButton);
             Controls.Add(SinglePlayButton);
@@ -83,5 +96,6 @@
         private Button SinglePlayButton;
         private Button DoublePlayButton;
         private Label InfoLabel;
+        private Button AutoPlayButton;
     }
 }
