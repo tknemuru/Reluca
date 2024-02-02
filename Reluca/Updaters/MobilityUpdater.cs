@@ -29,6 +29,8 @@ namespace Reluca.Updaters
 
             var validResults = new Dictionary<int, GameContext>();
             var updater = DiProvider.Get().GetService<MoveAndReverseUpdater>();
+            // 配置可能状態をリセットしておく
+            context.Mobility = 0ul;
             for (var i = 0; i < Board.AllLength; i++)
             {
                 var orgBoard = context.Board with { };

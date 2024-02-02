@@ -3,6 +3,7 @@ using Reluca.Contexts;
 using Reluca.Di;
 using Reluca.Models;
 using Reluca.Updaters;
+using System;
 
 namespace Reluca.Ui.WinForms
 {
@@ -69,11 +70,23 @@ namespace Reluca.Ui.WinForms
 
             Context = new GameContext();
             DiProvider.Get().GetService<InitializeUpdater>().Update(Context);
+            BoardAccessor.ChangeOppositeTurn(Context);
         }
 
         private void UpdateForm()
         {
+            Context.TurnCount++;
+            BoardAccessor.ChangeOppositeTurn(Context);
             DiProvider.Get().GetService<MobilityUpdater>().Update(Context);
+            if (Context.Mobility <= 0)
+            {
+                BoardAccessor.ChangeOppositeTurn(Context);
+                DiProvider.Get().GetService<MobilityUpdater>().Update(Context);
+                if (Context.Mobility <= 0)
+                {
+                    // ゲーム終了
+                }
+            }
             BlackDiscCountLabel.Text = BoardAccessor.GetDiscCount(Context.Board, Disc.Color.Black).ToString();
             WhiteDiscCountLabel.Text = BoardAccessor.GetDiscCount(Context.Board, Disc.Color.White).ToString();
             foreach (var picture in DiscPictures)
@@ -82,11 +95,41 @@ namespace Reluca.Ui.WinForms
                 var state = BoardAccessor.GetState(Context, index);
                 picture.Image = StateImages[state];
             }
+
+            // プレイヤ名の色
+            if (Context.Turn == Disc.Color.Black)
+            {
+                BlackPlayerNameLabel.BackColor = SystemColors.Highlight;
+                BlackPlayerNameLabel.ForeColor = SystemColors.HighlightText;
+                WhitePlayerNameLabel.BackColor = SystemColors.Control;
+                WhitePlayerNameLabel.ForeColor = SystemColors.ControlText;
+            } else
+            {
+                BlackPlayerNameLabel.BackColor = SystemColors.Control;
+                BlackPlayerNameLabel.ForeColor = SystemColors.ControlText;
+                WhitePlayerNameLabel.BackColor = SystemColors.Highlight;
+                WhitePlayerNameLabel.ForeColor = SystemColors.HighlightText;
+            }
         }
 
         private void DiscPictureBox_Click(object sender, EventArgs e)
         {
+            PictureBox picture = (PictureBox)sender;
+            var index = int.Parse(picture.Name.Replace(DiscPictureNamePrefix, string.Empty));
+            var state = BoardAccessor.GetState(Context, index);
 
+            // 配置不可能なら何もしない
+            if (state != Board.Status.Mobility)
+            {
+                return;
+            }
+
+            // 指定した場所に指す
+            Context.Move = index;
+            DiProvider.Get().GetService<MoveAndReverseUpdater>().Update(Context);
+
+            // 画面を更新する
+            UpdateForm();
         }
     }
 }

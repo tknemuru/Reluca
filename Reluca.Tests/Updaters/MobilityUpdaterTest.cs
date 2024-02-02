@@ -1,4 +1,5 @@
-﻿using Reluca.Updaters;
+﻿using Reluca.Models;
+using Reluca.Updaters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,6 +25,18 @@ namespace Reluca.Tests.Updaters
                 Target.Update(actuals[i]);
                 AssertEqualGameContext(expecteds[i], actuals[i]);
             }
+        }
+
+        [TestMethod]
+        public void 繰り返し配置可能状態を更新できる()
+        {
+            var expecteds = CreateMultipleGameContexts(2, 1, ResourceType.Out);
+            var actual = CreateGameContext(2, 1, ResourceType.In);
+            Target.Update(actual);
+            AssertEqualGameContext(expecteds[0], actual);
+            actual.Turn = Disc.Color.White;
+            Target.Update(actual);
+            AssertEqualGameContext(expecteds[1], actual);
         }
     }
 }

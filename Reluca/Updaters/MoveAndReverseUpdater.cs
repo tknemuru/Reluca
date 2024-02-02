@@ -42,12 +42,14 @@ namespace Reluca.Updaters
             var tmpOppsite = opposite;
             var valid = false;
             var hasReversed = false;
-            var index = i + 1;
-            int startLine = index / Board.Length;
-            int currentLine = startLine;
+            var index = i;
             // 右
-            while (currentLine == startLine)
+            while (BoardAccessor.IsValidIndex(index) && BoardAccessor.GetColumnIndex(index) < 7)
             {
+                index++;
+                tmpTurn |= 1ul << index;
+                tmpOppsite &= ~(1ul << index);
+
                 // 空マスが存在したら不成立
                 if (!BoardAccessor.ExistsDisc(context, index))
                 {
@@ -58,16 +60,16 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
-                tmpTurn |= 1ul << index;
-                tmpOppsite &= ~(1ul << index);
-                index++;
-                currentLine = index / Board.Length;
             }
             if (valid)
             {
@@ -81,10 +83,13 @@ namespace Reluca.Updaters
             tmpOppsite = opposite;
             valid = false;
             hasReversed = false;
-            index = i - 1;
-            currentLine = startLine;
-            while (currentLine == startLine)
+            index = i;
+            while (BoardAccessor.IsValidIndex(index) && BoardAccessor.GetColumnIndex(index) > 0)
             {
+                index--;
+                tmpTurn |= 1ul << index;
+                tmpOppsite &= ~(1ul << index);
+
                 // 空マスが存在したら不成立
                 if (!BoardAccessor.ExistsDisc(context, index))
                 {
@@ -95,16 +100,16 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
-                tmpTurn |= 1ul << index;
-                tmpOppsite &= ~(1ul << index);
-                index--;
-                currentLine = index / Board.Length;
             }
             if (valid)
             {
@@ -118,9 +123,13 @@ namespace Reluca.Updaters
             tmpOppsite = opposite;
             valid = false;
             hasReversed = false;
-            index = i - Board.Length;
-            while (index >= 0)
+            index = i;
+            while (BoardAccessor.IsValidIndex(index) && BoardAccessor.GetRowIndex(index) > 0)
             {
+                index -= Board.Length;
+                tmpTurn |= 1ul << index;
+                tmpOppsite &= ~(1ul << index);
+
                 // 空マスが存在したら不成立
                 if (!BoardAccessor.ExistsDisc(context, index))
                 {
@@ -131,15 +140,16 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
-                tmpTurn |= 1ul << index;
-                tmpOppsite &= ~(1ul << index);
-                index -= Board.Length;
             }
             if (valid)
             {
@@ -153,9 +163,13 @@ namespace Reluca.Updaters
             tmpOppsite = opposite;
             valid = false;
             hasReversed = false;
-            index = i + Board.Length;
-            while (index < Board.AllLength)
+            index = i;
+            while (BoardAccessor.IsValidIndex(index) && BoardAccessor.GetRowIndex(index) < 7)
             {
+                index += Board.Length;
+                tmpTurn |= 1ul << index;
+                tmpOppsite &= ~(1ul << index);
+
                 // 空マスが存在したら不成立
                 if (!BoardAccessor.ExistsDisc(context, index))
                 {
@@ -166,15 +180,16 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
-                tmpTurn |= 1ul << index;
-                tmpOppsite &= ~(1ul << index);
-                index += Board.Length;
             }
             if (valid)
             {
@@ -188,9 +203,14 @@ namespace Reluca.Updaters
             tmpOppsite = opposite;
             valid = false;
             hasReversed = false;
-            index = i + 1 - Board.Length;
-            while (index >= 0)
+            index = i;
+            while (BoardAccessor.IsValidIndex(index) && BoardAccessor.GetRowIndex(index) > 0 && BoardAccessor.GetColumnIndex(index) < 7)
             {
+                index++;
+                index -= Board.Length;
+                tmpTurn |= 1ul << index;
+                tmpOppsite &= ~(1ul << index);
+
                 // 空マスが存在したら不成立
                 if (!BoardAccessor.ExistsDisc(context, index))
                 {
@@ -201,16 +221,16 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
-                tmpTurn |= 1ul << index;
-                tmpOppsite &= ~(1ul << index);
-                index++;
-                index -= Board.Length;
             }
             if (valid)
             {
@@ -224,14 +244,14 @@ namespace Reluca.Updaters
             tmpOppsite = opposite;
             valid = false;
             hasReversed = false;
-            index = i - 1 + Board.Length;
-            var orgColIndex = -1;
-            if (index < Board.AllLength)
+            index = i;
+            while (BoardAccessor.IsValidIndex(index) && BoardAccessor.GetRowIndex(index) < 7 && BoardAccessor.GetColumnIndex(index) > 0)
             {
-                orgColIndex = BoardAccessor.GetColumnIndex(index);
-            }
-            while (index < Board.AllLength && BoardAccessor.GetColumnIndex(index) <= orgColIndex)
-            {
+                index--;
+                index += Board.Length;
+                tmpTurn |= 1ul << index;
+                tmpOppsite &= ~(1ul << index);
+
                 // 空マスが存在したら不成立
                 if (!BoardAccessor.ExistsDisc(context, index))
                 {
@@ -242,16 +262,16 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
-                tmpTurn |= 1ul << index;
-                tmpOppsite &= ~(1ul << index);
-                index--;
-                index += Board.Length;
             }
             if (valid)
             {
@@ -265,9 +285,14 @@ namespace Reluca.Updaters
             tmpOppsite = opposite;
             valid = false;
             hasReversed = false;
-            index = i - 1 - Board.Length;
-            while (index >= 0)
+            index = i;
+            while (BoardAccessor.IsValidIndex(index) && BoardAccessor.GetRowIndex(index) > 0 && BoardAccessor.GetColumnIndex(index) > 0)
             {
+                index--;
+                index -= Board.Length;
+                tmpTurn |= 1ul << index;
+                tmpOppsite &= ~(1ul << index);
+
                 // 空マスが存在したら不成立
                 if (!BoardAccessor.ExistsDisc(context, index))
                 {
@@ -278,16 +303,16 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
-                tmpTurn |= 1ul << index;
-                tmpOppsite &= ~(1ul << index);
-                index--;
-                index -= Board.Length;
             }
             if (valid)
             {
@@ -301,14 +326,14 @@ namespace Reluca.Updaters
             tmpOppsite = opposite;
             valid = false;
             hasReversed = false;
-            index = i + 1 + Board.Length;
-            orgColIndex = 99;
-            if (index < Board.AllLength)
+            index = i;
+            while (BoardAccessor.IsValidIndex(index) && BoardAccessor.GetRowIndex(index) < 7 && BoardAccessor.GetColumnIndex(index) < 7)
             {
-                orgColIndex = BoardAccessor.GetColumnIndex(index);
-            }
-            while (index < Board.AllLength && BoardAccessor.GetColumnIndex(index) >= orgColIndex)
-            {
+                index++;
+                index += Board.Length;
+                tmpTurn |= 1ul << index;
+                tmpOppsite &= ~(1ul << index);
+
                 // 空マスが存在したら不成立
                 if (!BoardAccessor.ExistsDisc(context, index))
                 {
@@ -319,16 +344,16 @@ namespace Reluca.Updaters
                 {
                     hasReversed = true;
                 }
-                // 自石が存在して一つ以上裏返し済であれば成立して終了
-                if (BoardAccessor.ExistsTurnDisc(context, index) && hasReversed)
+                // 自石が存在していたら終了
+                if (BoardAccessor.ExistsTurnDisc(context, index))
                 {
-                    valid = true;
+                    // 一つ以上裏返し済であれば成立
+                    if (hasReversed)
+                    {
+                        valid = true;
+                    }
                     break;
                 }
-                tmpTurn |= 1ul << index;
-                tmpOppsite &= ~(1ul << index);
-                index++;
-                index += Board.Length;
             }
             if (valid)
             {

@@ -49,7 +49,9 @@
             // BlackPlayerNameLabel
             // 
             BlackPlayerNameLabel.AutoSize = true;
+            BlackPlayerNameLabel.BackColor = SystemColors.Highlight;
             BlackPlayerNameLabel.Font = new Font("Yu Gothic UI", 22F);
+            BlackPlayerNameLabel.ForeColor = SystemColors.HighlightText;
             BlackPlayerNameLabel.Location = new Point(1056, 55);
             BlackPlayerNameLabel.Name = "BlackPlayerNameLabel";
             BlackPlayerNameLabel.Size = new Size(246, 60);
