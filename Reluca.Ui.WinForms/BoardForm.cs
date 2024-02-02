@@ -4,10 +4,13 @@ using Reluca.Di;
 using Reluca.Models;
 using Reluca.Updaters;
 using System;
+using System.Reflection;
 
 namespace Reluca.Ui.WinForms
 {
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
+#pragma warning disable CS8618 // null 非許容のフィールドには、コンストラクターの終了時に null 以外の値が入っていなければなりません。Null 許容として宣言することをご検討ください。
+#pragma warning disable CS8622
     /// <summary>
     /// 盤フォーム
     /// </summary>
@@ -30,6 +33,16 @@ namespace Reluca.Ui.WinForms
         };
 
         /// <summary>
+        /// 起動元フォーム
+        /// </summary>
+        private StartForm StartForm { get; set; }
+
+        /// <summary>
+        /// プレイヤリスト
+        /// </summary>
+        private Dictionary<Disc.Color, Player.Type> Players { get; set; }
+
+        /// <summary>
         /// 石のピクチャコントロールリスト
         /// </summary>
         private List<PictureBox> DiscPictures {  get; set; }
@@ -45,12 +58,29 @@ namespace Reluca.Ui.WinForms
         public BoardForm()
         {
             InitializeComponent();
-            Start();
-            UpdateForm();
         }
 
-        private void Start()
+        /// <summary>
+        /// ゲームを開始します。
+        /// </summary>
+        /// <param name="sender">起動元フォーム</param>
+        /// <param name="players">プレイヤリスト</param>
+        public void Start(StartForm sender, Dictionary<Disc.Color, Player.Type> players)
         {
+            StartForm = sender;
+            Players = players;
+            StartForm.Hide();
+
+            if (Players.Values.Contains(Player.Type.Cpu))
+            {
+                BlackPlayerNameLabel.Text = "黒：あなた";
+                WhitePlayerNameLabel.Text = "白：CPU";
+            } else
+            {
+                BlackPlayerNameLabel.Text = "黒：プレイヤ1";
+                WhitePlayerNameLabel.Text = "白：プレイヤ2";
+            }
+
             DiscPictures = new List<PictureBox>();
             for (var i = 0; i < Board.AllLength; i++)
             {
@@ -71,22 +101,44 @@ namespace Reluca.Ui.WinForms
             Context = new GameContext();
             DiProvider.Get().GetService<InitializeUpdater>().Update(Context);
             BoardAccessor.ChangeOppositeTurn(Context);
+            Next();
         }
 
-        private void UpdateForm()
+        /// <summary>
+        /// フォーム画面をアップデートします。
+        /// </summary>
+        private void Next()
         {
             Context.TurnCount++;
             BoardAccessor.ChangeOppositeTurn(Context);
-            DiProvider.Get().GetService<MobilityUpdater>().Update(Context);
+            RefreshForm();
             if (Context.Mobility <= 0)
             {
                 BoardAccessor.ChangeOppositeTurn(Context);
-                DiProvider.Get().GetService<MobilityUpdater>().Update(Context);
+                RefreshForm();
                 if (Context.Mobility <= 0)
                 {
                     // ゲーム終了
+                    End();
+                    return;
                 }
             }
+
+            //if (Players[Context.Turn] == Player.Type.Cpu)
+            //{
+            //    // TODO: CPUが打つ
+            //    Context.Move = index;
+            //    DiProvider.Get().GetService<MoveAndReverseUpdater>().Update(Context);
+            //    Next();
+            //}
+        }
+
+        /// <summary>
+        /// フォーム画面をリフレッシュします。
+        /// </summary>
+        private void RefreshForm()
+        {
+            DiProvider.Get().GetService<MobilityUpdater>().Update(Context);
             BlackDiscCountLabel.Text = BoardAccessor.GetDiscCount(Context.Board, Disc.Color.Black).ToString();
             WhiteDiscCountLabel.Text = BoardAccessor.GetDiscCount(Context.Board, Disc.Color.White).ToString();
             foreach (var picture in DiscPictures)
@@ -103,7 +155,8 @@ namespace Reluca.Ui.WinForms
                 BlackPlayerNameLabel.ForeColor = SystemColors.HighlightText;
                 WhitePlayerNameLabel.BackColor = SystemColors.Control;
                 WhitePlayerNameLabel.ForeColor = SystemColors.ControlText;
-            } else
+            }
+            else
             {
                 BlackPlayerNameLabel.BackColor = SystemColors.Control;
                 BlackPlayerNameLabel.ForeColor = SystemColors.ControlText;
@@ -112,6 +165,35 @@ namespace Reluca.Ui.WinForms
             }
         }
 
+        /// <summary>
+        /// ゲームを終了します。
+        /// </summary>
+        private void End()
+        {
+            var black = BoardAccessor.GetDiscCount(Context.Board, Disc.Color.Black);
+            var white = BoardAccessor.GetDiscCount(Context.Board, Disc.Color.White);
+            if (black == white)
+            {
+                StartForm.ShowResult("引き分けです");
+            }
+            else
+            {
+                if (black > white)
+                {
+                    StartForm.ShowResult($"{BlackPlayerNameLabel.Text}の勝ちです");
+                }
+                else
+                {
+                    StartForm.ShowResult($"{WhitePlayerNameLabel.Text}の勝ちです");
+                }
+            }
+        }
+
+        /// <summary>
+        /// 盤のマス目をクリックした際に実行します。
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void DiscPictureBox_Click(object sender, EventArgs e)
         {
             PictureBox picture = (PictureBox)sender;
@@ -128,8 +210,8 @@ namespace Reluca.Ui.WinForms
             Context.Move = index;
             DiProvider.Get().GetService<MoveAndReverseUpdater>().Update(Context);
 
-            // 画面を更新する
-            UpdateForm();
+            // ターンを回す
+            Next();
         }
     }
 }
