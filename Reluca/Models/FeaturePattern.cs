@@ -31,6 +31,24 @@ namespace Reluca.Models
         };
 
         /// <summary>
+        /// 種類と桁数の変換辞書
+        /// </summary>
+        private static readonly Dictionary<Type, ushort> TypeDigitDic = new Dictionary<Type, ushort>()
+        {
+            [Type.Diag4] = 4,
+            [Type.Diag5] = 5,
+            [Type.Diag6] = 6,
+            [Type.Diag7] = 7,
+            [Type.Diag8] = 8,
+            [Type.HorVert2] = 8,
+            [Type.HorVert3] = 8,
+            [Type.HorVert4] = 8,
+            [Type.Edge2X] = 10,
+            [Type.Corner2X5] = 10,
+            [Type.Corner3X3] = 9,
+        };
+
+        /// <summary>
         /// 種類
         /// </summary>
         public enum Type
@@ -67,6 +85,22 @@ namespace Reluca.Models
         }
 
         /// <summary>
+        /// 種類の桁数
+        /// </summary>
+        public static class TypeDigit
+        {
+            /// <summary>
+            /// 最小
+            /// </summary>
+            public const ushort Min = 4;
+
+            /// <summary>
+            /// 最大
+            /// </summary>
+            public const ushort Max = 10;
+        }
+
+        /// <summary>
         /// 盤状態の連番
         /// </summary>
         public static class BoardStateSequence
@@ -74,15 +108,15 @@ namespace Reluca.Models
             /// <summary>
             /// 白
             /// </summary>
-            public const ulong White = 0ul;
+            public const ushort White = 0;
             /// <summary>
             /// 空
             /// </summary>
-            public const ulong Empty = 1ul;
+            public const ushort Empty = 1;
             /// <summary>
             /// 黒
             /// </summary>
-            public const ulong Black = 2ul;
+            public const ushort Black = 2;
         }
 
         /// <summary>
@@ -93,6 +127,16 @@ namespace Reluca.Models
         public static Type GetType(string name)
         {
             return TypeNameDic[name];
+        }
+
+        /// <summary>
+        /// 指定した種類の桁数を取得します。
+        /// </summary>
+        /// <param name="type">種類</param>
+        /// <returns>種類の桁数</returns>
+        public static ushort GetDigit(Type type)
+        {
+            return TypeDigitDic[type];
         }
     }
 }
