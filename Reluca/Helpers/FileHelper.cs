@@ -16,7 +16,7 @@ namespace Reluca.Helpers
         /// <summary>
         /// エンコードの初期値
         /// </summary>
-        private const string DefaultEncoding = "UTF-8";
+        private static Encoding DefaultEncoding = new UTF8Encoding();
 
         /// <summary>
         /// <para>ファイルから文字列のリストを取得します。</para>
@@ -26,7 +26,7 @@ namespace Reluca.Helpers
         /// <returns>文字列のリスト</returns>
         public static IEnumerable<string> ReadTextLines(string filePath, Encoding? encoding = null)
         {
-            if (encoding == null) { encoding = Encoding.GetEncoding(DefaultEncoding); }
+            if (encoding == null) { encoding = DefaultEncoding; }
 
             string line;
             using (StreamReader sr = new StreamReader(filePath, encoding))
@@ -49,12 +49,25 @@ namespace Reluca.Helpers
         /// <returns>jsonファイルから作成したオブジェクト</returns>
         public static T? ReadJson<T>(string filePath, Encoding? encoding = null)
         {
-            if (encoding == null) { encoding = Encoding.GetEncoding(DefaultEncoding); }
+            if (encoding == null) { encoding = DefaultEncoding; }
 
             using (var sr = new StreamReader(filePath, encoding))
             {
                 return JsonConvert.DeserializeObject<T>(sr.ReadToEnd());
             }
+        }
+
+        /// <summary>
+        /// jsonファイルを読み込みます。
+        /// </summary>
+        /// <typeparam name="T">jsonに対応した型</typeparam>
+        /// <param name="fileByte">ファイルのバイト文字列</param>
+        /// <param name="encoding">エンコード</param>
+        /// <returns>jsonファイルから作成したオブジェクト</returns>
+        public static T? ReadJson<T>(byte[] fileByte, Encoding? encoding = null)
+        {
+            if (encoding == null) { encoding = DefaultEncoding; }
+            return JsonConvert.DeserializeObject<T>(encoding.GetString(fileByte));
         }
 
         /// <summary>
@@ -66,11 +79,11 @@ namespace Reluca.Helpers
         /// <param name="encoding">エンコード</param>
         public static void WriteJson(object obj, string filePath, Formatting formatting, Encoding? encoding = null)
         {
-            if (encoding == null) { encoding = Encoding.GetEncoding(DefaultEncoding); }
+            if (encoding == null) { encoding = DefaultEncoding; }
             CreateDirectory(GetFileDirectory(filePath));
 
             var json = JsonConvert.SerializeObject(obj, formatting);
-            using (var sr = new StreamWriter(filePath, false, Encoding.GetEncoding(DefaultEncoding)))
+            using (var sr = new StreamWriter(filePath, false, encoding))
             {
                 sr.Write(json);
             }
