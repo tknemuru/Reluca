@@ -32,6 +32,20 @@ namespace Reluca.Tests
         }
 
         /// <summary>
+        /// リソースを読み込み、文字列のリストとして返却します。
+        /// </summary>
+        /// <param name="targetName">テスト対象クラス名</param>
+        /// <param name="index">インデックス</param>
+        /// <param name="childIndex">子インデックス</param>
+        /// <param name="type">リソース種別</param>
+        /// <param name="extension">拡張子</param>
+        /// <returns>リソース文字列</returns>
+        public static IEnumerable<string> ReadResource(string targetName, int index, int childIndex, ResourceType type, string extension = "txt")
+        {
+            return FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type, extension));
+        }
+
+        /// <summary>
         /// リソースファイルから盤状態を作成します。
         /// </summary>
         /// <param name="targetName">テスト対象クラス名</param>
@@ -42,7 +56,7 @@ namespace Reluca.Tests
         /// <returns>盤状態</returns>
         public static BoardContext CreateBoardContext(string targetName, int index, int childIndex, ResourceType type, string extension = "txt")
         {
-            return DiProvider.Get().GetService<StringToBoardContextConverter>().Convert(FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type)));
+            return DiProvider.Get().GetService<StringToBoardContextConverter>().Convert(FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type, extension)));
         }
 
         /// <summary>
@@ -56,7 +70,7 @@ namespace Reluca.Tests
         /// <returns>ゲーム状態</returns>
         public static GameContext CreateGameContext(string targetName, int index, int childIndex, ResourceType type, string extension = "txt")
         {
-            return DiProvider.Get().GetService<StringToGameContextConverter>().Convert(FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type)));
+            return DiProvider.Get().GetService<StringToGameContextConverter>().Convert(FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type, extension)));
         }
 
         /// <summary>
@@ -71,7 +85,7 @@ namespace Reluca.Tests
         public static List<BoardContext> CreateMultipleBoardContexts(string targetName, int index, int childIndex, ResourceType type, string extension = "txt")
         {
             var contexts = new List<BoardContext>();
-            var lines = FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type));
+            var lines = FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type, extension));
             var unit = new List<string>();
             foreach (var value in lines)
             {
@@ -106,7 +120,7 @@ namespace Reluca.Tests
         public static List<GameContext> CreateMultipleGameContexts(string targetName, int index, int childIndex, ResourceType type, string extension = "txt")
         {
             var contexts = new List<GameContext>();
-            var lines = FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type));
+            var lines = FileHelper.ReadTextLines(GetResourcePath(targetName, index, childIndex, type, extension));
             var unit = new List<string>();
             foreach (var value in lines)
             {
