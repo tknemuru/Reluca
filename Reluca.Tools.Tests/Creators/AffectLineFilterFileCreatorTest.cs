@@ -2,6 +2,7 @@
 using Reluca.Converters;
 using Reluca.Di;
 using Reluca.Helpers;
+using Reluca.Tests;
 using Reluca.Tools.Creators;
 using System;
 using System.Collections.Generic;
@@ -16,8 +17,18 @@ namespace Reluca.Tools.Tests.Creators
     /// AffectLineFilterFileCreatorの単体テスト機能を提供します。
     /// </summary>
     [TestClass]
-    public class AffectLineFilterFileCreatorTest : BaseUnitTest<AffectLineFilterFileCreator>
+    public class AffectLineFilterFileCreatorTest
     {
+        /// <summary>
+        /// テスト対象のクラス名
+        /// </summary>
+        private const string TargetName = "AffectLineFilterFileCreator";
+
+        /// <summary>
+        /// テスト対象のインスタンス
+        /// </summary>
+        private AffectLineFilterFileCreator Target { get; set; }
+
         [TestInitialize]
         public void Init()
         {
@@ -30,10 +41,10 @@ namespace Reluca.Tools.Tests.Creators
             var converter = DiProvider.Get().GetService<StringToBoardContextConverter>();
             var expected = new List<ulong>
             {
-                converter.Convert(FileHelper.ReadTextLines(GetResourcePath(1, 1, Reluca.Tests.ResourceType.Out))).Black,
-                converter.Convert(FileHelper.ReadTextLines(GetResourcePath(1, 2, Reluca.Tests.ResourceType.Out))).Black,
-                converter.Convert(FileHelper.ReadTextLines(GetResourcePath(1, 3, Reluca.Tests.ResourceType.Out))).Black,
-                converter.Convert(FileHelper.ReadTextLines(GetResourcePath(1, 4, Reluca.Tests.ResourceType.Out))).Black
+                converter.Convert(FileHelper.ReadTextLines(UnitTestHelper.GetResourcePath(TargetName, 1, 1, ResourceType.Out))).Black,
+                converter.Convert(FileHelper.ReadTextLines(UnitTestHelper.GetResourcePath(TargetName, 1, 2, ResourceType.Out))).Black,
+                converter.Convert(FileHelper.ReadTextLines(UnitTestHelper.GetResourcePath(TargetName, 1, 3, ResourceType.Out))).Black,
+                converter.Convert(FileHelper.ReadTextLines(UnitTestHelper.GetResourcePath(TargetName, 1, 4, ResourceType.Out))).Black
             };
 
             var actual = Target.Create(11);
