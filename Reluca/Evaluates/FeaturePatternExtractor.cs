@@ -81,11 +81,11 @@ namespace Reluca.Evaluates
             for (var i = 0; i < length; i++)
             {
                 var value = FeaturePattern.BoardStateSequence.Empty;
-                if ((context.White & positions[0]) > 0)
+                if ((context.White & positions[i]) > 0)
                 {
                     value = FeaturePattern.BoardStateSequence.White;
                 }
-                else if ((context.Black & positions[0]) > 0)
+                else if ((context.Black & positions[i]) > 0)
                 {
                     value = FeaturePattern.BoardStateSequence.Black;
                 }

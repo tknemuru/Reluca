@@ -23,7 +23,7 @@ namespace Reluca.Tests.Evaluates
             var actual = Target.Extract(context);
             Assert.AreEqual(RadixHelper.ToUInt16("2011111021", 3), actual[FeaturePattern.Type.Edge2X][0]);
             Assert.AreEqual(RadixHelper.ToUInt16("2110111202", 3), actual[FeaturePattern.Type.Edge2X][1]);
-            Assert.AreEqual(RadixHelper.ToUInt16("2110110110", 3), actual[FeaturePattern.Type.Corner2X5][0]);
+            Assert.AreEqual(RadixHelper.ToUInt16("2110110112", 3), actual[FeaturePattern.Type.Corner2X5][0]);
         }
     }
 }
