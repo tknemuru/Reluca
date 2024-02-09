@@ -65,12 +65,12 @@ namespace Reluca.Evaluates
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <returns>特徴パターン</returns>
-        public Dictionary<FeaturePattern.Type, List<uint>> Extract(BoardContext context)
+        public Dictionary<FeaturePattern.Type, List<int>> Extract(BoardContext context)
         {
-            var result = new Dictionary<FeaturePattern.Type, List<uint>>();
+            var result = new Dictionary<FeaturePattern.Type, List<int>>();
             foreach (var pattern in PatternPositions)
             {
-                result[pattern.Key] = new List<uint>();
+                result[pattern.Key] = new List<int>();
                 foreach (var positions in pattern.Value)
                 {
                     result[pattern.Key].Add(Normalizer.Normalize(pattern.Key, ConvertToTernaryIndex(context, positions)));
@@ -85,9 +85,9 @@ namespace Reluca.Evaluates
         /// <param name="context">盤状態</param>
         /// <param name="positions">特徴パターンの位置情報</param>
         /// <returns>盤状態を特徴パターンに従って3進数変換したインデックス</returns>
-        private static uint ConvertToTernaryIndex(BoardContext context, List<ulong> positions)
+        private static int ConvertToTernaryIndex(BoardContext context, List<ulong> positions)
         {
-            uint index = 0;
+            int index = 0;
             var length = positions.Count;
             for (var i = 0; i < length; i++)
             {

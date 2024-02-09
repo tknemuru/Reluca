@@ -108,15 +108,15 @@ namespace Reluca.Models
             /// <summary>
             /// 白
             /// </summary>
-            public const uint White = 0;
+            public const int White = 0;
             /// <summary>
             /// 空
             /// </summary>
-            public const uint Empty = 1;
+            public const int Empty = 1;
             /// <summary>
             /// 黒
             /// </summary>
-            public const uint Black = 2;
+            public const int Black = 2;
         }
 
         /// <summary>
