@@ -50,6 +50,19 @@ namespace Reluca.Tests
         }
 
         /// <summary>
+        /// jsonリソースを読み込み、オブジェクトを生成して返却します。
+        /// </summary>
+        /// <typeparam name="T">jsonに対応した型</typeparam>
+        /// <param name="index">インデックス</param>
+        /// <param name="childIndex">子インデックス</param>
+        /// <param name="type">リソース種別</param>
+        /// <returns>jsonから生成したオブジェクト</returns>
+        public TIn? ReadJsonResource<TIn>(int index, int childIndex, ResourceType type)
+        {
+            return UnitTestHelper.ReadJsonResource<TIn>(Target.GetType().Name, index, childIndex, type);
+        }
+
+        /// <summary>
         /// リソースファイルから盤状態を作成します。
         /// </summary>
         /// <param name="index">インデックス</param>
