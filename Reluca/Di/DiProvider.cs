@@ -59,6 +59,7 @@ namespace Reluca.Di
             services.AddSingleton<GameEndJudge, GameEndJudge>();
             services.AddSingleton<FindFirstMover, FindFirstMover>();
             services.AddSingleton<FeaturePatternExtractor, FeaturePatternExtractor>();
+            services.AddSingleton<FeaturePatternNormalizer, FeaturePatternNormalizer>();
             var provider = services.BuildServiceProvider();
             return provider;
         }
