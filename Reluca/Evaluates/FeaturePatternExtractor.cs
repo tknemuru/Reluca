@@ -1,4 +1,5 @@
 ﻿using Reluca.Contexts;
+using Reluca.Di;
 using Reluca.Helpers;
 using Reluca.Models;
 using Reluca.Services;
@@ -10,14 +11,20 @@ using System.Threading.Tasks;
 
 namespace Reluca.Evaluates
 {
-#pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
+#pragma warning disable CS8618
 #pragma warning disable CS8604
+#pragma warning disable CS8601
     public class FeaturePatternExtractor
     {
         /// <summary>
         /// 特徴パターンの位置情報を管理する辞書
         /// </summary>
-        public Dictionary<FeaturePattern.Type, List<List<ulong>>> PatternPositions { get; set; }
+        private Dictionary<FeaturePattern.Type, List<List<ulong>>> PatternPositions { get; set; }
+
+        /// <summary>
+        /// 正規化機能
+        /// </summary>
+        private INormalizable Normalizer { get; set; }
 
         /// <summary>
         /// コンストラクタ
@@ -36,17 +43,21 @@ namespace Reluca.Evaluates
             // 文字列操作を避けるために、キーを文字列からenumに変換して保持する
             var positions = resource.ToDictionary(r => FeaturePattern.GetType(r.Key), r => r.Value);
             PatternPositions = positions;
+
+            Normalizer = DiProvider.Get().GetService<FeaturePatternNormalizer>();
         }
 
         /// <summary>
         /// 特徴パターンの位置情報辞書を読み込みます。
         /// </summary>
         /// <param name="resource">特徴パターンの位置情報辞書</param>
-        public void Initialize(Dictionary<string, List<List<ulong>>>? resource)
+        public void Initialize(Dictionary<string, List<List<ulong>>>? resource, INormalizable normalizer)
         {
             // 文字列操作を避けるために、キーを文字列からenumに変換して保持する
             var positions = resource.ToDictionary(r => FeaturePattern.GetType(r.Key), r => r.Value);
             PatternPositions = positions;
+
+            Normalizer = normalizer;
         }
 
         /// <summary>
@@ -62,7 +73,7 @@ namespace Reluca.Evaluates
                 result[pattern.Key] = new List<ushort>();
                 foreach (var positions in pattern.Value)
                 {
-                    result[pattern.Key].Add(ConvertToTernaryIndex(context, positions));
+                    result[pattern.Key].Add(Normalizer.Normalize(pattern.Key, ConvertToTernaryIndex(context, positions)));
                 }
             }
             return result;

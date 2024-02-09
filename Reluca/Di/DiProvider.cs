@@ -60,6 +60,7 @@ namespace Reluca.Di
             services.AddSingleton<FindFirstMover, FindFirstMover>();
             services.AddSingleton<FeaturePatternExtractor, FeaturePatternExtractor>();
             services.AddSingleton<FeaturePatternNormalizer, FeaturePatternNormalizer>();
+            services.AddSingleton<NoneNormalizer, NoneNormalizer>();
             var provider = services.BuildServiceProvider();
             return provider;
         }
