@@ -18,6 +18,6 @@ namespace Reluca.Evaluates
         /// <param name="type">特徴パターン種別</param>
         /// <param name="org">元の値</param>
         /// <returns>正規化した値</returns>
-        uint Normalize(FeaturePattern.Type type, uint org);
+        int Normalize(FeaturePattern.Type type, int org);
     }
 }

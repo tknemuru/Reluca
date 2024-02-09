@@ -61,6 +61,8 @@ namespace Reluca.Di
             services.AddSingleton<FeaturePatternExtractor, FeaturePatternExtractor>();
             services.AddSingleton<FeaturePatternNormalizer, FeaturePatternNormalizer>();
             services.AddSingleton<NoneNormalizer, NoneNormalizer>();
+            services.AddSingleton<FeaturePatternEvaluator, FeaturePatternEvaluator>();
+            services.AddSingleton<EvaluatedValueSignNoramalizer, EvaluatedValueSignNoramalizer>();
             var provider = services.BuildServiceProvider();
             return provider;
         }
