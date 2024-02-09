@@ -18,7 +18,7 @@ namespace Reluca.Evaluates
         /// <param name="type">特徴パターンの種別</param>
         /// <param name="org">元の値</param>
         /// <returns>元の値</returns>
-        public ushort Normalize(FeaturePattern.Type type, ushort org)
+        public uint Normalize(FeaturePattern.Type type, uint org)
         {
             return org;
         }
