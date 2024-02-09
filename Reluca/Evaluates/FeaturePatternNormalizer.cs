@@ -23,7 +23,7 @@ namespace Reluca.Evaluates
         /// <summary>
         /// 正規化辞書
         /// </summary>
-        private Dictionary<ushort, Dictionary<ushort, ushort>> NormalizeDic {  get; set; }
+        private Dictionary<uint, Dictionary<uint, uint>> NormalizeDic {  get; set; }
 
         /// <summary>
         /// コンストラクタ
@@ -39,7 +39,7 @@ namespace Reluca.Evaluates
         /// <param name="type">特徴パターンの種類</param>
         /// <param name="org">正規化前の値</param>
         /// <returns>正規化した特徴パターン</returns>
-        public ushort Normalize(FeaturePattern.Type type, ushort org)
+        public uint Normalize(FeaturePattern.Type type, uint org)
         {
             var digit = FeaturePattern.GetDigit(type);
             Debug.Assert(NormalizeDic.ContainsKey(digit), "辞書に情報が存在しません。");
@@ -51,18 +51,18 @@ namespace Reluca.Evaluates
         /// 正規化辞書を読み込みます。
         /// </summary>
         /// <returns>正規化辞書</returns>
-        private static Dictionary<ushort, Dictionary<ushort, ushort>> ReadNoramlizeDic()
+        private static Dictionary<uint, Dictionary<uint, uint>> ReadNoramlizeDic()
         {
-            var result = new Dictionary<ushort, Dictionary<ushort, ushort>>();
+            var result = new Dictionary<uint, Dictionary<uint, uint>>();
             var csv = Properties.Resources.feature_normalize;
             var keyValues = csv.Split(',');
             var length = keyValues.Length;
             Debug.Assert((length % 2 == 0), "要素数が奇数です。");
 
             // 取り得る桁数で初期化
-            for(ushort i = FeaturePattern.TypeDigit.Min; i <= FeaturePattern.TypeDigit.Max; i++)
+            for(uint i = FeaturePattern.TypeDigit.Min; i <= FeaturePattern.TypeDigit.Max; i++)
             {
-                result[i] = new Dictionary<ushort, ushort>();
+                result[i] = new Dictionary<uint, uint>();
             }
 
             // csvを変換していく
@@ -70,9 +70,9 @@ namespace Reluca.Evaluates
             {
                 var orgDigit = keyValues[i].Split(KeyDigitSeparator);
                 Debug.Assert(orgDigit.Length == 2, "要素数が不正です。");
-                var org = ushort.Parse(orgDigit[0]);
-                var digit = ushort.Parse(orgDigit[1]);
-                var dest = ushort.Parse(keyValues[i + 1]);
+                var org = uint.Parse(orgDigit[0]);
+                var digit = uint.Parse(orgDigit[1]);
+                var dest = uint.Parse(keyValues[i + 1]);
                 result[digit][org] = dest;
             }
             return result;

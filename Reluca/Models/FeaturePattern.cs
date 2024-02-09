@@ -33,7 +33,7 @@ namespace Reluca.Models
         /// <summary>
         /// 種類と桁数の変換辞書
         /// </summary>
-        private static readonly Dictionary<Type, ushort> TypeDigitDic = new Dictionary<Type, ushort>()
+        private static readonly Dictionary<Type, uint> TypeDigitDic = new Dictionary<Type, uint>()
         {
             [Type.Diag4] = 4,
             [Type.Diag5] = 5,
@@ -92,12 +92,12 @@ namespace Reluca.Models
             /// <summary>
             /// 最小
             /// </summary>
-            public const ushort Min = 4;
+            public const uint Min = 4;
 
             /// <summary>
             /// 最大
             /// </summary>
-            public const ushort Max = 10;
+            public const uint Max = 10;
         }
 
         /// <summary>
@@ -108,15 +108,15 @@ namespace Reluca.Models
             /// <summary>
             /// 白
             /// </summary>
-            public const ushort White = 0;
+            public const uint White = 0;
             /// <summary>
             /// 空
             /// </summary>
-            public const ushort Empty = 1;
+            public const uint Empty = 1;
             /// <summary>
             /// 黒
             /// </summary>
-            public const ushort Black = 2;
+            public const uint Black = 2;
         }
 
         /// <summary>
@@ -134,7 +134,7 @@ namespace Reluca.Models
         /// </summary>
         /// <param name="type">種類</param>
         /// <returns>種類の桁数</returns>
-        public static ushort GetDigit(Type type)
+        public static uint GetDigit(Type type)
         {
             return TypeDigitDic[type];
         }
