@@ -13,7 +13,7 @@ namespace Reluca.Evaluates
     /// <summary>
     /// 特徴パターンの正規化機能を提供します。
     /// </summary>
-    public class FeaturePatternNormalizer
+    public class FeaturePatternNormalizer : INormalizable
     {
         /// <summary>
         /// キーと桁数を分離する文字
