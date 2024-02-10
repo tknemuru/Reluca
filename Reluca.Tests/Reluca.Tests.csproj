@@ -22,4 +22,8 @@
     <ProjectReference Include="..\Reluca\Reluca.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Resources\MoveAndReverseUpdater\" />
+  </ItemGroup>
+
 </Project>

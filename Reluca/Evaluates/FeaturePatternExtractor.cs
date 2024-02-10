@@ -31,14 +31,6 @@ namespace Reluca.Evaluates
         /// </summary>
         public FeaturePatternExtractor()
         {
-            PatternPositions = new Dictionary<FeaturePattern.Type, List<List<ulong>>>();
-        }
-
-        /// <summary>
-        /// 特徴パターンの位置情報辞書を読み込みます。
-        /// </summary>
-        public void Initialize()
-        {
             var resource = FileHelper.ReadJson<Dictionary<string, List<List<ulong>>>>(Properties.Resources.feature_pattern);
             // 文字列操作を避けるために、キーを文字列からenumに変換して保持する
             var positions = resource.ToDictionary(r => FeaturePattern.GetType(r.Key), r => r.Value);
@@ -48,9 +40,10 @@ namespace Reluca.Evaluates
         }
 
         /// <summary>
-        /// 特徴パターンの位置情報辞書を読み込みます。
+        /// 初期化を行います。。
         /// </summary>
         /// <param name="resource">特徴パターンの位置情報辞書</param>
+        /// <param name="normalizer">正規化機能</param>
         public void Initialize(Dictionary<string, List<List<ulong>>>? resource, INormalizable normalizer)
         {
             // 文字列操作を避けるために、キーを文字列からenumに変換して保持する

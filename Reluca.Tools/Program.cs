@@ -1,12 +1,13 @@
 ﻿// See https://aka.ms/new-console-template for more information
-using Reluca.Tools.Creators;
-
-Console.WriteLine(args);
+using Reluca.Tools;
 
 switch (args[0])
 {
     case "FeaturePatternCreator":
         FeaturePatternCreator.Execute();
+        break;
+    case "ScoreFileAdjuster":
+        ScoreFileAdjuster.Adjust();
         break;
     default:
         Console.WriteLine("想定外の引数です。");
