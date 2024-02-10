@@ -90,6 +90,36 @@ namespace Reluca.Helpers
         }
 
         /// <summary>
+        /// <para>文字列に改行コードを付与して出力します。</para>
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <returns></returns>
+        public static void WriteLine(string line, string filePath, bool append = true)
+        {
+            CreateDirectory(GetFileDirectory(filePath));
+
+            using (StreamWriter sr = new StreamWriter(filePath, append, DefaultEncoding))
+            {
+                sr.WriteLine(line);
+            }
+        }
+
+        /// <summary>
+        /// <para>文字列をファイルに出力する</para>
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <returns></returns>
+        public static void Write(string str, string filePath, bool append = true)
+        {
+            CreateDirectory(GetFileDirectory(filePath));
+
+            using (StreamWriter sr = new StreamWriter(filePath, append, DefaultEncoding))
+            {
+                sr.Write(str);
+            }
+        }
+
+        /// <summary>
         /// ディレクトリを作成します。
         /// </summary>
         /// <param name="path">ファイルパス</param>

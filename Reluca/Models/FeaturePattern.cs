@@ -28,6 +28,8 @@ namespace Reluca.Models
             [TypeName.Edge2X] = Type.Edge2X,
             [TypeName.Corner2X5] = Type.Corner2X5,
             [TypeName.Corner3X3] = Type.Corner3X3,
+            [TypeName.Parity] = Type.Parity,
+            [TypeName.Mobility] = Type.Mobility,
         };
 
         /// <summary>
@@ -64,6 +66,8 @@ namespace Reluca.Models
             Edge2X,
             Corner2X5,
             Corner3X3,
+            Parity,
+            Mobility
         }
 
         /// <summary>
@@ -82,6 +86,9 @@ namespace Reluca.Models
             public const string Edge2X = "edge2X";
             public const string Corner2X5 = "corner2X5";
             public const string Corner3X3 = "corner3X3";
+            public const string Parity = "parity";
+            public const string Mobility = "mobility";
+
         }
 
         /// <summary>

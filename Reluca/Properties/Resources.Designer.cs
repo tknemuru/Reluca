@@ -61,6 +61,141 @@ namespace Reluca.Properties {
         }
         
         /// <summary>
+        ///   29515$corner2X5,3330999387626259,29524$corner2X5,-63904720948574,9813$corner3X3,2620941422935192,9841$corner3X3,164138498855988,31$diag4,3330999387626259,40$diag4,247699721530518,112$diag5,63983478139131,121$diag5,201973047339962,328$diag6,824059136994006,337$diag6,1189419627979439,346$diag6,-697831641944160,364$diag6,-81117214244064,742$diag7,981169078762780,823$diag7,1300611846963544,976$diag7,6689837585850140,985$diag7,499362133444153,1039$diag7,-847886034390029,1066$diag7,-849104055414403,2929$diag8,114 [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_1 {
+            get {
+                return ResourceManager.GetString("evaluated_value_1", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   0$corner2X5,-7855084493892839,1$corner2X5,-4960376371028176,2$corner2X5,-6017564438957307,3$corner2X5,-351250464601853,4$corner2X5,-197714836523304,6$corner2X5,-4540063934965711,7$corner2X5,625594170373110,8$corner2X5,-3477545049176080,9$corner2X5,-77359934074640,10$corner2X5,128510136122449,11$corner2X5,-405125811566724,17$corner2X5,325667282575822,18$corner2X5,-3241345786725790,19$corner2X5,-186635493059677,20$corner2X5,-321139864263142,21$corner2X5,-49483553647586,22$corner2X5,-214481199555452,23$corner2 [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_10 {
+            get {
+                return ResourceManager.GetString("evaluated_value_10", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   0$corner2X5,-7813759531249881,1$corner2X5,-4206926974648812,2$corner2X5,-6546811735919685,3$corner2X5,-171742241589997,4$corner2X5,-280994668724967,5$corner2X5,-953987507763619,6$corner2X5,-4834764063251724,7$corner2X5,-360901522529410,8$corner2X5,-3617628112818874,9$corner2X5,108884723016773,10$corner2X5,-157946402650735,11$corner2X5,-97466040682748,12$corner2X5,-24651553671260,14$corner2X5,-187589937388397,15$corner2X5,523104918897934,16$corner2X5,-164452388524936,17$corner2X5,200690001037687,18$corner2X5 [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_11 {
+            get {
+                return ResourceManager.GetString("evaluated_value_11", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   0$corner2X5,-7627238457695243,1$corner2X5,-3290452082459509,2$corner2X5,-5805466144489291,3$corner2X5,-1146277394597848,4$corner2X5,31091397676287,5$corner2X5,-241181971232972,6$corner2X5,-5126885958902571,7$corner2X5,-1726969729969200,8$corner2X5,-4076207857108658,9$corner2X5,270616197625805,10$corner2X5,-15510704271461,11$corner2X5,134185674433280,12$corner2X5,269499493212495,14$corner2X5,-147875382843377,15$corner2X5,242811595667609,16$corner2X5,2287526412582,17$corner2X5,1603656348642586,18$corner2X5,-3 [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_12 {
+            get {
+                return ResourceManager.GetString("evaluated_value_12", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   0$corner2X5,-6630093049672539,1$corner2X5,-3478321266174270,2$corner2X5,-5311250547385316,3$corner2X5,100759260589115,4$corner2X5,38519919384316,5$corner2X5,-207228265100980,6$corner2X5,-3948915144710844,7$corner2X5,-2107577298467954,8$corner2X5,-2657524546259516,9$corner2X5,550517594937167,10$corner2X5,-1012035114931241,11$corner2X5,144872157529884,12$corner2X5,-86121995756151,14$corner2X5,17654970432742,15$corner2X5,400018433757551,16$corner2X5,-181056289312979,17$corner2X5,-634827581146217,18$corner2X5,- [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_13 {
+            get {
+                return ResourceManager.GetString("evaluated_value_13", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   0$corner2X5,-4968097051572268,1$corner2X5,-2013147696599554,2$corner2X5,-4118677485665900,3$corner2X5,1926202897474190,4$corner2X5,1702850232127456,5$corner2X5,256753261338505,6$corner2X5,-3158611254480914,7$corner2X5,-197216718127204,8$corner2X5,-2598048020721132,9$corner2X5,379875333251351,10$corner2X5,500885562580309,11$corner2X5,1117587997530057,12$corner2X5,24028726112824,13$corner2X5,88570841630720,14$corner2X5,-177436403956873,15$corner2X5,-190221721690953,16$corner2X5,-257022645979858,17$corner2X5,- [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_14 {
+            get {
+                return ResourceManager.GetString("evaluated_value_14", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   0$corner2X5,-2991661352361294,1$corner2X5,-2187707350379184,2$corner2X5,-2219723079378781,3$corner2X5,945017742737204,4$corner2X5,979535835217978,5$corner2X5,-1934067336447672,6$corner2X5,-1781337036580630,7$corner2X5,-1182323758191989,8$corner2X5,-1349674039748364,9$corner2X5,2325757704925482,10$corner2X5,39781433213202,11$corner2X5,3363046192915090,12$corner2X5,-26761110445237,13$corner2X5,-36513297939477,14$corner2X5,-1150756808074297,15$corner2X5,627663474549314,16$corner2X5,158767481695957,17$corner2X5 [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_15 {
+            get {
+                return ResourceManager.GetString("evaluated_value_15", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   22954$corner2X5,-849821832872448,22957$corner2X5,1378268756085198,25159$corner2X5,88479536162136,26362$corner2X5,-1109334166358438,26366$corner2X5,-1044049706523332,27325$corner2X5,-5353734652330634,27326$corner2X5,1539518920496428,27328$corner2X5,514420953772787,27333$corner2X5,491865613566636,27334$corner2X5,4460318657146546,27335$corner2X5,-3284208175680842,27343$corner2X5,723419532918704,28069$corner2X5,571127218845420,28551$corner2X5,-1109334166358438,28555$corner2X5,-1044049706523332,28783$corner2X5,8 [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_2 {
+            get {
+                return ResourceManager.GetString("evaluated_value_2", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   976$corner2X5,-917900027399225,3163$corner2X5,-917900027399225,3244$corner2X5,-965246596358254,3325$corner2X5,-1530687556139684,6652$corner2X5,-1661032236199621,7618$corner2X5,-1661032236199621,9724$corner2X5,-965246596358254,9805$corner2X5,-3044544698185718,9814$corner2X5,-2911713007145946,9815$corner2X5,-1422546352371276,9817$corner2X5,-1457427642669852,9823$corner2X5,-1762999609213906,9826$corner2X5,-201497895369461,10060$corner2X5,1930525670043089,10061$corner2X5,-224342890732925,12010$corner2X5,-978412 [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_3 {
+            get {
+                return ResourceManager.GetString("evaluated_value_3", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   126$corner2X5,218454618947459,352$corner2X5,-1178530411696841,1105$corner2X5,-1001076511051849,1114$corner2X5,-1396706885166875,1132$corner2X5,-613224995793675,3248$corner2X5,-1989179934124626,3382$corner2X5,-1647054194243518,5453$corner2X5,-1346131819573640,5566$corner2X5,-634048677349596,6652$corner2X5,-1980548979859378,6886$corner2X5,189097703393582,7615$corner2X5,-541800248952679,7616$corner2X5,-250003243287659,7618$corner2X5,-1980548979859378,7775$corner2X5,17232138400324,9073$corner2X5,197746553525254 [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_4 {
+            get {
+                return ResourceManager.GetString("evaluated_value_4", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   99$corner2X5,-515813504222795,108$corner2X5,373658473604204,110$corner2X5,-976200292522366,126$corner2X5,-1956688873610960,128$corner2X5,-2087544943926536,129$corner2X5,-779400169746674,132$corner2X5,-441731141325734,133$corner2X5,-539896417901132,147$corner2X5,-253014759287346,154$corner2X5,-902697631438238,160$corner2X5,-303067720048586,161$corner2X5,-1988052213622281,220$corner2X5,-638990397243383,238$corner2X5,992600460496539,250$corner2X5,-975250255856498,268$corner2X5,-540663626990026,324$corner2X5,-1 [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_5 {
+            get {
+                return ResourceManager.GetString("evaluated_value_5", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   0$corner2X5,-5037302500165248,1$corner2X5,-151722903135324,2$corner2X5,-2771486846206130,4$corner2X5,-42706266025053,6$corner2X5,-267312268488914,7$corner2X5,-587535764221947,8$corner2X5,-1018587068912160,10$corner2X5,-233607613607802,18$corner2X5,-522852350461957,20$corner2X5,-2394794644530022,24$corner2X5,-402882910105875,25$corner2X5,99407588095909,26$corner2X5,-552144258009031,35$corner2X5,-493646971693328,46$corner2X5,-726384771279899,53$corner2X5,-566256219976245,62$corner2X5,-831656414973851,78$corne [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_6 {
+            get {
+                return ResourceManager.GetString("evaluated_value_6", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   0$corner2X5,-10274606686846416,1$corner2X5,-273492016607143,2$corner2X5,-7063731568238659,3$corner2X5,-448870874516465,7$corner2X5,-115071540990715,8$corner2X5,-2086516324848419,10$corner2X5,187622661106747,18$corner2X5,590038599927532,19$corner2X5,-97756785253811,20$corner2X5,-2029650614518460,24$corner2X5,-1554682781484480,26$corner2X5,-909787324746829,27$corner2X5,-1636922110659598,33$corner2X5,-344514941285971,45$corner2X5,-2843953373699252,46$corner2X5,410271487799651,47$corner2X5,-1364889191232522,51$ [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_7 {
+            get {
+                return ResourceManager.GetString("evaluated_value_7", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   0$corner2X5,-10638024628827610,1$corner2X5,-1225607819892623,2$corner2X5,-4327840547811404,3$corner2X5,-127118302761255,5$corner2X5,-1047189051732460,6$corner2X5,-638084017200185,7$corner2X5,-1393010387667249,8$corner2X5,-4224771166417026,11$corner2X5,211891301547559,17$corner2X5,156044374622648,18$corner2X5,-451487137064382,19$corner2X5,-129251657061379,20$corner2X5,425838168158743,22$corner2X5,-71504909549865,24$corner2X5,-667948335892982,25$corner2X5,-1286061333335689,26$corner2X5,-476900775553757,27$cor [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_8 {
+            get {
+                return ResourceManager.GetString("evaluated_value_8", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   0$corner2X5,-8680692606936937,1$corner2X5,-3392778327479726,2$corner2X5,-6619821950942889,3$corner2X5,194286999770536,4$corner2X5,118992988510130,6$corner2X5,-954481844578033,7$corner2X5,6847657095958,8$corner2X5,-1195794375611526,10$corner2X5,-194709783646903,11$corner2X5,258597688062022,17$corner2X5,39765894226074,18$corner2X5,-2406505845746052,19$corner2X5,568949607656218,20$corner2X5,1000191386887882,22$corner2X5,-378503289510387,24$corner2X5,75206185775165,25$corner2X5,-288961496812087,26$corner2X5,-76 [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
+        /// </summary>
+        internal static string evaluated_value_9 {
+            get {
+                return ResourceManager.GetString("evaluated_value_9", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   0$4,1,80$4,-1,1$4,1,79$4,-1,27$4,1,53$4,-1,2$4,1,78$4,-1,54$4,1,26$4,-1,3$4,1,77$4,-1,9$4,1,71$4,-1,4$4,1,76$4,-1,36$4,1,44$4,-1,5$4,1,75$4,-1,63$4,1,17$4,-1,6$4,1,74$4,-1,18$4,1,62$4,-1,7$4,1,73$4,-1,45$4,1,35$4,-1,8$4,1,72$4,-1,10$4,1,70$4,-1,30$4,1,50$4,-1,11$4,1,69$4,-1,57$4,1,23$4,-1,12$4,1,68$4,-1,13$4,1,67$4,-1,39$4,1,41$4,-1,14$4,1,66$4,-1,15$4,1,65$4,-1,21$4,1,59$4,-1,16$4,1,64$4,-1,48$4,1,32$4,-1,19$4,1,61$4,-1,33$4,1,47$4,-1,20$4,1,60$4,-1,22$4,1,58$4,-1,42$4,1,38$4,-1,24$4,1,56$4,-1,25$4,1,55$4, [残りの文字列は切り詰められました]&quot;; に類似しているローカライズされた文字列を検索します。
         /// </summary>
         internal static string evaluated_value_sign_normalize {

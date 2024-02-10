@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Output\" />
+    <Folder Include="Output\ScoreFileAdjuster\" />
   </ItemGroup>
 
 </Project>
