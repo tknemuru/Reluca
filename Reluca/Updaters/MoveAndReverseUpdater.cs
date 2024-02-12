@@ -23,12 +23,30 @@ namespace Reluca.Updaters
         /// <returns>有効な指し手であるかどうか</returns>
         public bool Update(GameContext context)
         {
+            return Update(context, -1);
+        }
+
+        /// <summary>
+        /// 指し手による盤の更新を行います。
+        /// </summary>
+        /// <param name="context">ゲーム状態</param>
+        /// <param name="move">指し手。指定した場合は試行のみを行い、更新は行わない</param>
+        /// <returns>有効な指し手であるかどうか</returns>
+        public bool Update(GameContext context, int move)
+        {
+            var analyze = true;
+            if (move < 0)
+            {
+                analyze = false;
+                move = context.Move;
+            }
+
             Debug.Assert(context != null);
-            Debug.Assert(context.Move >= 0);
+            Debug.Assert(move >= 0);
             Debug.Assert(context.Turn != Disc.Color.Undefined);
 
             var validMove = false;
-            var i = context.Move;
+            var i = move;
             var turn = BoardAccessor.GetTurnDiscs(context);
             var opposite = BoardAccessor.GetOppositeDiscs(context);
             // 指し手の場所に既に石が配置済であれば何もせず終了
@@ -362,15 +380,16 @@ namespace Reluca.Updaters
                 validMove = true;
             }
 
-            if (validMove)
+            // 有効な指し手、かつ、分析目的でなければ盤状態を更新する
+            if (validMove && !analyze)
             {
-                // 有効な指し手であれば、最後に指し手自体を配置する
-                turn |= 1ul << context.Move;
-            }
+                // 指し手自体を配置する
+                turn |= 1ul << move;
 
-            // 結果をコンテキストに反映
-            BoardAccessor.SetTurnDiscs(context, turn);
-            BoardAccessor.SetOppositeDiscs(context, opposite);
+                // 結果をコンテキストに反映
+                BoardAccessor.SetTurnDiscs(context, turn);
+                BoardAccessor.SetOppositeDiscs(context, opposite);
+            }
 
             return validMove;
         }

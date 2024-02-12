@@ -43,8 +43,8 @@ namespace Reluca.Ui.WinForms
         {
             var players = new Dictionary<Disc.Color, Player.Type>()
             {
-                [Disc.Color.Black] = Player.Type.Human,
-                [Disc.Color.White] = Player.Type.Cpu
+                [Disc.Color.Black] = Player.Type.Cpu,
+                [Disc.Color.White] = Player.Type.Human
             };
             BoardForm.Start(this, players);
             BoardForm.Show();

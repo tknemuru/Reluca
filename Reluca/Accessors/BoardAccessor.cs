@@ -26,6 +26,11 @@ namespace Reluca.Accessors
         private const string RowPositions = "12345678";
 
         /// <summary>
+        /// 最大ターンカウント
+        /// </summary>
+        private const int MaxTurnCount = 60;
+
+        /// <summary>
         /// 指定したインデックスの状態を取得します。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
@@ -261,6 +266,8 @@ namespace Reluca.Accessors
             {
                 context.Turn = Disc.Color.Black;
             }
+            context.TurnCount++;
+            context.Stage = context.TurnCount / 4;
         }
 
         /// <summary>
@@ -283,6 +290,16 @@ namespace Reluca.Accessors
                 }
             }
             return result;
+        }
+
+        /// <summary>
+        /// ゲーム終了のターン数に達したかどうか。
+        /// </summary>
+        /// <param name="context">ゲーム状態</param>
+        /// <returns>ゲーム終了のターン数に達したかどうか。</returns>
+        public static bool IsGameEndTurnCount(GameContext context)
+        {
+            return context.TurnCount > MaxTurnCount;
         }
 
         /// <summary>

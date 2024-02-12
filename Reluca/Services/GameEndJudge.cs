@@ -34,14 +34,14 @@ namespace Reluca.Services
             var updater = DiProvider.Get().GetService<MobilityUpdater>();
             var ownResult = updater.Update(_context);
             // 自身の指し手が存在したらゲーム続行
-            if (ownResult > 0)
+            if (ownResult.Count > 0)
             {
                 return false;
             }
             BoardAccessor.ChangeOppositeTurn(_context);
             var oppositeResult = updater.Update(_context);
             // 相手の指し手が存在したらゲーム続行
-            if (oppositeResult > 0)
+            if (oppositeResult.Count > 0)
             {
                 return false;
             }
