@@ -1,4 +1,5 @@
 ﻿using Reluca.Accessors;
+using Reluca.Analyzers;
 using Reluca.Contexts;
 using Reluca.Di;
 using Reluca.Models;
@@ -35,9 +36,14 @@ namespace Reluca.Evaluates
         private FeaturePatternExtractor? Extractor {  get; set; }
 
         /// <summary>
-        /// 着手可能数更新機能
+        /// 着手可能数分析機能
         /// </summary>
-        private MobilityUpdater? MobilityUpdater { get; set; }
+        private MobilityAnalyzer? MobilityAnalyzer { get; set; }
+
+        /// <summary>
+        /// 評価値符号の正規化機能
+        /// </summary>
+        private EvaluatedValueSignNoramalizer? EvalSignNormalizer {  get; set; }
 
         /// <summary>
         /// コンストラクタ
@@ -46,16 +52,18 @@ namespace Reluca.Evaluates
         {
             EvaluatedValues = [];
             Extractor = DiProvider.Get().GetService<FeaturePatternExtractor>();
-            MobilityUpdater = DiProvider.Get().GetService<MobilityUpdater>();
+            MobilityAnalyzer = DiProvider.Get().GetService<MobilityAnalyzer>();
+            EvalSignNormalizer = DiProvider.Get().GetService<EvaluatedValueSignNoramalizer>();
         }
 
         /// <summary>
         /// 初期化を行います。
         /// </summary>
-        public void Initialize(FeaturePatternExtractor extractor, MobilityUpdater mobility)
+        public void Initialize(FeaturePatternExtractor extractor, MobilityAnalyzer mobility, EvaluatedValueSignNoramalizer evalSignNormalizer)
         {
             Extractor = extractor;
-            MobilityUpdater = mobility;
+            MobilityAnalyzer = mobility;
+            EvalSignNormalizer = evalSignNormalizer;
         }
 
         /// <summary>
@@ -71,8 +79,8 @@ namespace Reluca.Evaluates
             var parity = GetParity(context);
 
             // 着手可能数
-            var black = MobilityUpdater.Update(context, Disc.Color.Black);
-            var white = MobilityUpdater.Update(context, Disc.Color.White);
+            var black = MobilityAnalyzer.Analyze(context, Disc.Color.Black).Count;
+            var white = MobilityAnalyzer.Analyze(context, Disc.Color.White).Count;
             var mobility = black - white;
             eval += EvaluatedValues[context.Stage][FeaturePattern.Type.Mobility][0] * mobility;
 
@@ -99,9 +107,9 @@ namespace Reluca.Evaluates
             {
                 foreach (var index in pattern.Value)
                 {
-                    if (EvaluatedValues[context.Stage][pattern.Key].ContainsKey(index))
+                    if (EvaluatedValues[context.Stage][pattern.Key].TryGetValue(index, out long value))
                     {
-                        eval += EvaluatedValues[context.Stage][pattern.Key][index];
+                        eval += value * EvalSignNormalizer.Normalize(pattern.Key, index);
                     }
                 }
             }
@@ -180,7 +188,7 @@ namespace Reluca.Evaluates
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <returns>パリティ値</returns>
-        public static long GetParity(GameContext context)
+        private static long GetParity(GameContext context)
         {
             return context.Turn == Disc.Color.Black ? 1 : 0;
         }

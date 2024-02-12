@@ -1,8 +1,10 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Reluca.Analyzers;
 using Reluca.Contexts;
 using Reluca.Converters;
 using Reluca.Evaluates;
 using Reluca.Movers;
+using Reluca.Serchers;
 using Reluca.Services;
 using Reluca.Updaters;
 using System;
@@ -63,6 +65,11 @@ namespace Reluca.Di
             services.AddSingleton<NoneNormalizer, NoneNormalizer>();
             services.AddSingleton<FeaturePatternEvaluator, FeaturePatternEvaluator>();
             services.AddSingleton<EvaluatedValueSignNoramalizer, EvaluatedValueSignNoramalizer>();
+            services.AddSingleton<MobilityAnalyzer, MobilityAnalyzer>();
+            services.AddSingleton<DiscCountEvaluator, DiscCountEvaluator>();
+            services.AddSingleton<FindBestMover, FindBestMover>();
+
+            services.AddTransient<NegaMax, NegaMax>();
             var provider = services.BuildServiceProvider();
             return provider;
         }

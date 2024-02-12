@@ -114,7 +114,7 @@ namespace Reluca.Ui.WinForms
         /// </summary>
         private void Next()
         {
-            Context.TurnCount++;
+            //Context.TurnCount++;
             BoardAccessor.ChangeOppositeTurn(Context);
             RefreshForm();
             if (Context.Mobility <= 0)
@@ -131,7 +131,7 @@ namespace Reluca.Ui.WinForms
 
             if (Players[Context.Turn] == Player.Type.Cpu)
             {
-                Context.Move = DiProvider.Get().GetService<FindFirstMover>().Move(Context);
+                Context.Move = DiProvider.Get().GetService<FindBestMover>().Move(Context);
                 DiProvider.Get().GetService<MoveAndReverseUpdater>().Update(Context);
                 Next();
             }
