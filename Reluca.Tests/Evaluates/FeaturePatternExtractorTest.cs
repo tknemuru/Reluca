@@ -19,26 +19,12 @@ namespace Reluca.Tests.Evaluates
         {
             var resource = ReadJsonResource<Dictionary<string, List<List<ulong>>>>(1, 1, ResourceType.In);
             var context = CreateBoardContext(1, 2, ResourceType.In);
-            Target.Initialize(resource, new NoneNormalizer());
-            var actual = Target.Extract(context);
+            var target = new FeaturePatternExtractor();
+            target.Initialize(resource);
+            var actual = target.Extract(context);
             Assert.AreEqual(RadixHelper.ToInt32("2011111021", 3), actual[FeaturePattern.Type.Edge2X][0]);
             Assert.AreEqual(RadixHelper.ToInt32("2110111202", 3), actual[FeaturePattern.Type.Edge2X][1]);
             Assert.AreEqual(RadixHelper.ToInt32("2110110112", 3), actual[FeaturePattern.Type.Corner2X5][0]);
-        }
-
-        [TestMethod]
-        public void 正規化有りで特徴パターンが抽出できる()
-        {
-            var resource = ReadJsonResource<Dictionary<string, List<List<ulong>>>>(1, 1, ResourceType.In);
-            var context = CreateBoardContext(1, 2, ResourceType.In);
-            Target.Initialize(resource, new FeaturePatternNormalizer());
-            var actual = Target.Extract(context);
-            // Assert.AreEqual(RadixHelper.ToInt32("2011111021", 3), actual[FeaturePattern.Type.Edge2X][0]);
-            Assert.AreEqual(RadixHelper.ToInt32("0211111201", 3), actual[FeaturePattern.Type.Edge2X][0]);
-            // Assert.AreEqual(RadixHelper.ToInt32("2110111202", 3), actual[FeaturePattern.Type.Edge2X][1]);
-            Assert.AreEqual(RadixHelper.ToInt32("0112111020", 3), actual[FeaturePattern.Type.Edge2X][1]);
-            // Assert.AreEqual(RadixHelper.ToInt32("2110110112", 3), actual[FeaturePattern.Type.Corner2X5][0]);
-            Assert.AreEqual(RadixHelper.ToInt32("0112112110", 3), actual[FeaturePattern.Type.Corner2X5][0]);
         }
     }
 }

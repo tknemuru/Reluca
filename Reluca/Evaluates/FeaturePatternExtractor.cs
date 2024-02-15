@@ -22,11 +22,6 @@ namespace Reluca.Evaluates
         private Dictionary<FeaturePattern.Type, List<List<ulong>>> PatternPositions { get; set; }
 
         /// <summary>
-        /// 正規化機能
-        /// </summary>
-        private INormalizable Normalizer { get; set; }
-
-        /// <summary>
         /// コンストラクタ
         /// </summary>
         public FeaturePatternExtractor()
@@ -35,22 +30,17 @@ namespace Reluca.Evaluates
             // 文字列操作を避けるために、キーを文字列からenumに変換して保持する
             var positions = resource.ToDictionary(r => FeaturePattern.GetType(r.Key), r => r.Value);
             PatternPositions = positions;
-
-            Normalizer = DiProvider.Get().GetService<FeaturePatternNormalizer>();
         }
 
         /// <summary>
         /// 初期化を行います。。
         /// </summary>
         /// <param name="resource">特徴パターンの位置情報辞書</param>
-        /// <param name="normalizer">正規化機能</param>
-        public void Initialize(Dictionary<string, List<List<ulong>>>? resource, INormalizable normalizer)
+        public void Initialize(Dictionary<string, List<List<ulong>>>? resource)
         {
             // 文字列操作を避けるために、キーを文字列からenumに変換して保持する
             var positions = resource.ToDictionary(r => FeaturePattern.GetType(r.Key), r => r.Value);
             PatternPositions = positions;
-
-            Normalizer = normalizer;
         }
 
         /// <summary>
@@ -66,7 +56,7 @@ namespace Reluca.Evaluates
                 result[pattern.Key] = new List<int>();
                 foreach (var positions in pattern.Value)
                 {
-                    result[pattern.Key].Add(Normalizer.Normalize(pattern.Key, ConvertToTernaryIndex(context, positions)));
+                    result[pattern.Key].Add(ConvertToTernaryIndex(context, positions));
                 }
             }
             return result;

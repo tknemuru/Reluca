@@ -62,5 +62,15 @@ namespace Reluca.Tests.Serchers
             // ゲーム状態は何も変わっていない
             AssertEqualGameContext(orgContext, context);
         }
+
+        [TestMethod]
+        public void 期待通りの最善手が選択できる()
+        {
+            Target.Clear();
+            var context = CreateGameContext(3, 1, ResourceType.In);
+            var actual = Target.Search(context);
+            Assert.AreEqual("h5", BoardAccessor.ToPosition(actual));
+            Assert.AreEqual(24707782635804942, Target.Value);
+        }
     }
 }
