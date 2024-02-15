@@ -18,12 +18,12 @@ namespace Reluca.Serchers
         /// <summary>
         /// <para>初期アルファ値</para>
         /// </summary>
-        protected const long DefaultAlpha = long.MinValue;
+        protected const long DefaultAlpha = -1000000000000000000;
 
         /// <summary>
         /// <para>初期ベータ値</para>
         /// </summary>
-        protected const long DefaultBeta = long.MaxValue;
+        protected const long DefaultBeta = 1000000000000000000;
 
         /// <summary>
         /// 評価値
@@ -86,7 +86,7 @@ namespace Reluca.Serchers
                     // 前処理
                     var copyContext = SearchSetUp(context, leaf);
 
-                    long value = SearchBestValue(copyContext, depth + 1, -beta, -alpha) * -1;
+                    long value = SearchBestValue(copyContext, depth + 1, -beta, -alpha) * -1L;
 
                     // 後処理
                     SearchTearDown(copyContext);
@@ -115,7 +115,7 @@ namespace Reluca.Serchers
                 var copyContext = BoardAccessor.DeepCopy(context);
                 PassSetUp(copyContext);
 
-                maxKeyValue = SearchBestValue(copyContext, depth + 1, -beta, -alpha) * -1;
+                maxKeyValue = SearchBestValue(copyContext, depth + 1, -beta, -alpha) * -1L;
 
                 // 後処理
                 PassTearDown(copyContext);

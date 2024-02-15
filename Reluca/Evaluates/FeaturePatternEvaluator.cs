@@ -41,6 +41,11 @@ namespace Reluca.Evaluates
         private MobilityAnalyzer? MobilityAnalyzer { get; set; }
 
         /// <summary>
+        /// 特徴パターンの正規化機能
+        /// </summary>
+        private FeaturePatternNormalizer? FeatureNormalizer { get; set; }
+
+        /// <summary>
         /// 評価値符号の正規化機能
         /// </summary>
         private EvaluatedValueSignNoramalizer? EvalSignNormalizer {  get; set; }
@@ -53,16 +58,18 @@ namespace Reluca.Evaluates
             EvaluatedValues = [];
             Extractor = DiProvider.Get().GetService<FeaturePatternExtractor>();
             MobilityAnalyzer = DiProvider.Get().GetService<MobilityAnalyzer>();
+            FeatureNormalizer = DiProvider.Get().GetService<FeaturePatternNormalizer>();
             EvalSignNormalizer = DiProvider.Get().GetService<EvaluatedValueSignNoramalizer>();
         }
 
         /// <summary>
         /// 初期化を行います。
         /// </summary>
-        public void Initialize(FeaturePatternExtractor extractor, MobilityAnalyzer mobility, EvaluatedValueSignNoramalizer evalSignNormalizer)
+        public void Initialize(FeaturePatternExtractor extractor, MobilityAnalyzer mobility, FeaturePatternNormalizer featureNoramalizer, EvaluatedValueSignNoramalizer evalSignNormalizer)
         {
             Extractor = extractor;
             MobilityAnalyzer = mobility;
+            FeatureNormalizer = featureNoramalizer;
             EvalSignNormalizer = evalSignNormalizer;
         }
 
@@ -107,8 +114,10 @@ namespace Reluca.Evaluates
             {
                 foreach (var index in pattern.Value)
                 {
-                    if (EvaluatedValues[context.Stage][pattern.Key].TryGetValue(index, out long value))
+                    // 正規化した特徴パターンで評価値を取得する
+                    if (EvaluatedValues[context.Stage][pattern.Key].TryGetValue(FeatureNormalizer.Normalize(pattern.Key, index), out long value))
                     {
+                        // 正規化前の特徴パターンで符号の正規化値を取得して掛ける
                         eval += value * EvalSignNormalizer.Normalize(pattern.Key, index);
                     }
                 }

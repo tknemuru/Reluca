@@ -19,11 +19,17 @@ namespace Reluca.Tests.Evaluates
             var contexts = CreateMultipleGameContexts(1, 1, ResourceType.In);
             var orgContext = BoardAccessor.DeepCopy(contexts[0]);
             var actual = Target.Evaluate(contexts[0]);
-            Console.WriteLine($"評価値1:{actual}");
-            Assert.IsTrue(actual > 0);
+            Assert.AreEqual(-2685683177938380, actual);
 
             // ゲーム状態は何も変わっていない
             AssertEqualGameContext(orgContext, contexts[0]);
+
+            orgContext = BoardAccessor.DeepCopy(contexts[1]);
+            actual = Target.Evaluate(contexts[1]);
+            Assert.AreEqual(-8595967991902324, actual);
+
+            // ゲーム状態は何も変わっていない
+            AssertEqualGameContext(orgContext, contexts[1]);
         }
     }
 }

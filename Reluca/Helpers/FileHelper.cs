@@ -19,6 +19,29 @@ namespace Reluca.Helpers
         private static Encoding DefaultEncoding = new UTF8Encoding();
 
         /// <summary>
+        /// ファイルパスの初期値
+        /// </summary>
+        private static readonly string DefaultFilePath;
+
+        /// <summary>
+        /// コンストラクタ
+        /// </summary>
+        static FileHelper()
+        {
+            DefaultFilePath = string.Format(@"./log/{0}.txt", DateTime.Now.ToString("yyyyMMddhhmmss"));
+        }
+
+        /// <summary>
+        /// <para>文字列をファイルに出力する</para>
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <returns></returns>
+        public static void Log(string str)
+        {
+            WriteLine(str, DefaultFilePath);
+        }
+
+        /// <summary>
         /// <para>ファイルから文字列のリストを取得します。</para>
         /// </summary>
         /// <param name="filePath">ファイルパス</param>
