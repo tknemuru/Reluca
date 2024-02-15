@@ -253,10 +253,10 @@ namespace Reluca.Accessors
         }
 
         /// <summary>
-        /// ターンを逆の色に変更します。
+        /// 次のターンに変更します。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
-        public static void ChangeOppositeTurn(GameContext context)
+        public static void NextTurn(GameContext context)
         {
             Debug.Assert(context.Turn != Disc.Color.Undefined, "ターンが不確定");
             if (context.Turn == Disc.Color.Black)
@@ -268,6 +268,23 @@ namespace Reluca.Accessors
             }
             context.TurnCount++;
             context.Stage = context.TurnCount / 4;
+        }
+
+        /// <summary>
+        /// パスをしてターンを逆の色に変更します。
+        /// </summary>
+        /// <param name="context">ゲーム状態</param>
+        public static void Pass(GameContext context)
+        {
+            Debug.Assert(context.Turn != Disc.Color.Undefined, "ターンが不確定");
+            if (context.Turn == Disc.Color.Black)
+            {
+                context.Turn = Disc.Color.White;
+            }
+            else
+            {
+                context.Turn = Disc.Color.Black;
+            }
         }
 
         /// <summary>
