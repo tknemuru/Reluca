@@ -225,9 +225,9 @@ namespace Reluca.Tests.Accessors
         {
             var context = new GameContext();
             context.Turn = Disc.Color.Black;
-            BoardAccessor.ChangeOppositeTurn(context);
+            BoardAccessor.NextTurn(context);
             Assert.AreEqual(context.Turn, Disc.Color.White);
-            BoardAccessor.ChangeOppositeTurn(context);
+            BoardAccessor.Pass(context);
             Assert.AreEqual(context.Turn, Disc.Color.Black);
         }
 

@@ -38,7 +38,7 @@ namespace Reluca.Services
             {
                 return false;
             }
-            BoardAccessor.ChangeOppositeTurn(_context);
+            BoardAccessor.Pass(_context);
             var oppositeResult = updater.Update(_context);
             // 相手の指し手が存在したらゲーム続行
             if (oppositeResult.Count > 0)

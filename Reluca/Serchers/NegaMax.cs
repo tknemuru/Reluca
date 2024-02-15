@@ -24,7 +24,7 @@ namespace Reluca.Serchers
         /// <summary>
         /// 深さの制限
         /// </summary>
-        private const int DefaultLimitDepth = 6;
+        private const int DefaultLimitDepth = 7;
 
         /// <summary>
         /// 評価機能
@@ -140,7 +140,7 @@ namespace Reluca.Serchers
 
             // ターンをまわす
             //copyContext.TurnCount++;
-            BoardAccessor.ChangeOppositeTurn(copyContext);
+            BoardAccessor.NextTurn(copyContext);
 
             return copyContext;
         }
@@ -158,8 +158,8 @@ namespace Reluca.Serchers
         /// </summary>
         protected override GameContext PassSetUp(GameContext context)
         {
-            // ターンをまわす
-            BoardAccessor.ChangeOppositeTurn(context);
+            // パスする
+            BoardAccessor.Pass(context);
             return context;
         }
 

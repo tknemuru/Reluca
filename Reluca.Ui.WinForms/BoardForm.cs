@@ -105,7 +105,7 @@ namespace Reluca.Ui.WinForms
 
             Context = new GameContext();
             DiProvider.Get().GetService<InitializeUpdater>().Update(Context);
-            BoardAccessor.ChangeOppositeTurn(Context);
+            BoardAccessor.Pass(Context);
             Next();
         }
 
@@ -114,12 +114,11 @@ namespace Reluca.Ui.WinForms
         /// </summary>
         private void Next()
         {
-            //Context.TurnCount++;
-            BoardAccessor.ChangeOppositeTurn(Context);
+            BoardAccessor.NextTurn(Context);
             RefreshForm();
             if (Context.Mobility <= 0)
             {
-                BoardAccessor.ChangeOppositeTurn(Context);
+                BoardAccessor.Pass(Context);
                 RefreshForm();
                 if (Context.Mobility <= 0)
                 {
