@@ -70,7 +70,7 @@ namespace Reluca.Tests.Serchers
             var context = CreateGameContext(3, 1, ResourceType.In);
             var actual = Target.Search(context);
             Assert.AreEqual("h5", BoardAccessor.ToPosition(actual));
-            Assert.AreEqual(24707782635804942, Target.Value);
+            Assert.AreEqual(26643089275914709, Target.Value);
         }
     }
 }

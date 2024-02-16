@@ -24,7 +24,7 @@ namespace Reluca.Serchers
         /// <summary>
         /// 深さの制限
         /// </summary>
-        private const int DefaultLimitDepth = 7;
+        private const int DefaultLimitDepth = 9;
 
         /// <summary>
         /// 評価機能
@@ -105,7 +105,7 @@ namespace Reluca.Serchers
         /// <returns></returns>
         protected override bool IsOrdering(int depth)
         {
-            return false;
+            return depth <= 3;
         }
 
         /// <summary>
@@ -115,7 +115,14 @@ namespace Reluca.Serchers
         /// <returns></returns>
         protected override IEnumerable<int> MoveOrdering(IEnumerable<int> allLeaf, GameContext context)
         {
-            return allLeaf;
+            var orderd = allLeaf
+                .OrderByDescending(move =>
+                {
+                    var copyContext = SearchSetUp(context, move);
+                    BoardAccessor.Pass(copyContext);
+                    return GetEvaluate(copyContext);
+                });
+            return orderd;
         }
 
         /// <summary>
@@ -139,7 +146,6 @@ namespace Reluca.Serchers
             ReverseUpdater.Update(copyContext);
 
             // ターンをまわす
-            //copyContext.TurnCount++;
             BoardAccessor.NextTurn(copyContext);
 
             return copyContext;
