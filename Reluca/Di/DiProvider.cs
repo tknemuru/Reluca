@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Reluca.Analyzers;
+using Reluca.Cachers;
 using Reluca.Contexts;
 using Reluca.Converters;
 using Reluca.Evaluates;
@@ -68,8 +69,10 @@ namespace Reluca.Di
             services.AddSingleton<MobilityAnalyzer, MobilityAnalyzer>();
             services.AddSingleton<DiscCountEvaluator, DiscCountEvaluator>();
             services.AddSingleton<FindBestMover, FindBestMover>();
+            services.AddSingleton<MobilityCacher, MobilityCacher>();
 
             services.AddTransient<NegaMax, NegaMax>();
+            services.AddTransient<CachedNegaMax, CachedNegaMax>();
             var provider = services.BuildServiceProvider();
             return provider;
         }

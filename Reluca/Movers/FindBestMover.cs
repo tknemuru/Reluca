@@ -1,4 +1,5 @@
-﻿using Reluca.Contexts;
+﻿using Reluca.Cachers;
+using Reluca.Contexts;
 using Reluca.Di;
 using Reluca.Evaluates;
 using Reluca.Serchers;
@@ -20,7 +21,7 @@ namespace Reluca.Movers
         /// <summary>
         /// 探索機能
         /// </summary>
-        private NegaMax? Searcher { get; set; }
+        private CachedNegaMax? Searcher { get; set; }
 
         /// <summary>
         /// 指し手を決めます。
@@ -29,8 +30,8 @@ namespace Reluca.Movers
         /// <returns>指し手</returns>
         public int Move(GameContext context)
         {
-            Searcher = DiProvider.Get().GetService<NegaMax>();
-            if (context.TurnCount >= 48)
+            Searcher = DiProvider.Get().GetService<CachedNegaMax>();
+            if (context.TurnCount >= 46)
             {
                 Searcher.Initialize(DiProvider.Get().GetService<DiscCountEvaluator>(), 99);
             }
