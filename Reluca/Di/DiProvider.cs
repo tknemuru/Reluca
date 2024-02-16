@@ -70,6 +70,7 @@ namespace Reluca.Di
             services.AddSingleton<DiscCountEvaluator, DiscCountEvaluator>();
             services.AddSingleton<FindBestMover, FindBestMover>();
             services.AddSingleton<MobilityCacher, MobilityCacher>();
+            services.AddSingleton<EvalCacher, EvalCacher>();
 
             services.AddTransient<NegaMax, NegaMax>();
             services.AddTransient<CachedNegaMax, CachedNegaMax>();

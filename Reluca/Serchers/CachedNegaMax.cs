@@ -49,6 +49,11 @@ namespace Reluca.Serchers
         private MobilityCacher? MobilityCacher { get; set; }
 
         /// <summary>
+        /// 評価値のキャッシュ機能
+        /// </summary>
+        private EvalCacher? EvalCacher { get; set; }
+
+        /// <summary>
         /// 探索する深さ
         /// </summary>
         protected int LimitDepth { get; set; }
@@ -63,6 +68,7 @@ namespace Reluca.Serchers
             MobilityAnalyzer = DiProvider.Get().GetService<MobilityAnalyzer>();
             ReverseUpdater = DiProvider.Get().GetService<MoveAndReverseUpdater>();
             MobilityCacher = DiProvider.Get().GetService<MobilityCacher>();
+            EvalCacher = DiProvider.Get().GetService<EvalCacher>();
             LimitDepth = DefaultLimitDepth;
         }
 
@@ -86,6 +92,7 @@ namespace Reluca.Serchers
         {
             // 古いキャッシュをクリアする
             DiProvider.Get().GetService<MobilityCacher>().Dispose(context);
+            DiProvider.Get().GetService<EvalCacher>().Dispose(context);
 
             return base.Search(context);
         }
@@ -108,8 +115,13 @@ namespace Reluca.Serchers
         /// <returns>評価値</returns>
         protected override long GetEvaluate(GameContext context)
         {
-            var score = Evaluator.Evaluate(context);
-            return score * GetParity(context);
+            if (EvalCacher.TryGet(context, out var cScore))
+            {
+                return cScore;
+            }
+            var score = Evaluator.Evaluate(context) * GetParity(context);
+            EvalCacher.Add(context, score);
+            return score;
         }
 
         /// <summary>
@@ -133,7 +145,7 @@ namespace Reluca.Serchers
         /// <returns></returns>
         protected override bool IsOrdering(int depth)
         {
-            return depth <= 4;
+            return depth <= 6;
         }
 
         /// <summary>
