@@ -267,7 +267,7 @@ namespace Reluca.Accessors
                 context.Turn = Disc.Color.Black;
             }
             context.TurnCount++;
-            context.Stage = (context.TurnCount + 4) / 4;
+            context.Stage = Math.Min((context.TurnCount + Stage.Unit) / Stage.Unit, Stage.Max);
         }
 
         /// <summary>

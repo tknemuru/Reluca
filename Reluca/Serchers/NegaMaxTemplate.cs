@@ -18,12 +18,12 @@ namespace Reluca.Serchers
         /// <summary>
         /// <para>初期アルファ値</para>
         /// </summary>
-        protected const long DefaultAlpha = -1000000000000000000;
+        protected const long DefaultAlpha = -1000000000000000000L;
 
         /// <summary>
         /// <para>初期ベータ値</para>
         /// </summary>
-        protected const long DefaultBeta = 1000000000000000000;
+        protected const long DefaultBeta = 1000000000000000000L;
 
         /// <summary>
         /// 評価値
@@ -57,7 +57,7 @@ namespace Reluca.Serchers
         /// </summary>
         /// <param name="context">フィールド状態</param>
         /// <returns>移動方向</returns>
-        public int Search(GameContext context)
+        public virtual int Search(GameContext context)
         {
             Value = SearchBestValue(context, 1, DefaultAlpha, DefaultBeta);
             return Key;

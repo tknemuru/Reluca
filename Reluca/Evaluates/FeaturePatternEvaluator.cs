@@ -99,11 +99,11 @@ namespace Reluca.Evaluates
                 var resultCount = blackCount - whiteCount;
                 if (resultCount > 0)
                 {
-                    return long.MaxValue;
+                    return 1000000000000000000L;
                 }
                 if (resultCount < 0)
                 {
-                    return long.MinValue;
+                    return -1000000000000000000L;
                 }
                 return 0;
             }

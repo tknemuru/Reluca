@@ -1,5 +1,6 @@
 ﻿using Reluca.Accessors;
 using Reluca.Analyzers;
+using Reluca.Cachers;
 using Reluca.Contexts;
 using Reluca.Di;
 using Reluca.Evaluates;
@@ -12,6 +13,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Schema;
 
 namespace Reluca.Serchers
 {
@@ -19,7 +21,7 @@ namespace Reluca.Serchers
     /// <summary>
     /// NegaMax法の探索機能を提供します。
     /// </summary>
-    public class NegaMax : NegaMaxTemplate
+    public class CachedNegaMax : NegaMaxTemplate
     {
         /// <summary>
         /// 深さの制限
@@ -42,6 +44,11 @@ namespace Reluca.Serchers
         private MoveAndReverseUpdater? ReverseUpdater { get; set; }
 
         /// <summary>
+        /// 着手可能情報のキャッシュ機能
+        /// </summary>
+        private MobilityCacher? MobilityCacher { get; set; }
+
+        /// <summary>
         /// 探索する深さ
         /// </summary>
         protected int LimitDepth { get; set; }
@@ -49,12 +56,13 @@ namespace Reluca.Serchers
         /// <summary>
         /// コンストラクタ
         /// </summary>
-        public NegaMax()
+        public CachedNegaMax()
             : base()
         {
             Evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
             MobilityAnalyzer = DiProvider.Get().GetService<MobilityAnalyzer>();
             ReverseUpdater = DiProvider.Get().GetService<MoveAndReverseUpdater>();
+            MobilityCacher = DiProvider.Get().GetService<MobilityCacher>();
             LimitDepth = DefaultLimitDepth;
         }
 
@@ -68,6 +76,20 @@ namespace Reluca.Serchers
             Evaluator = evaluator;
             LimitDepth = limitDepth;
         }
+
+        /// <summary>
+        /// 探索し、結果を返却します。
+        /// </summary>
+        /// <param name="context">フィールド状態</param>
+        /// <returns>移動方向</returns>
+        public override int Search(GameContext context)
+        {
+            // 古いキャッシュをクリアする
+            DiProvider.Get().GetService<MobilityCacher>().Dispose(context);
+
+            return base.Search(context);
+        }
+
 
         /// <summary>
         /// 深さ制限に達した場合にはTrueを返す
@@ -96,7 +118,13 @@ namespace Reluca.Serchers
         /// <returns></returns>
         protected override IEnumerable<int> GetAllLeaf(GameContext context)
         {
-            return MobilityAnalyzer.Analyze(context);
+            if (MobilityCacher.TryGet(context, out var cLeafs))
+            {
+                return cLeafs;
+            }
+            var leafs = MobilityAnalyzer.Analyze(context);
+            MobilityCacher.Add(context, leafs);
+            return leafs;
         }
 
         /// <summary>
@@ -105,7 +133,7 @@ namespace Reluca.Serchers
         /// <returns></returns>
         protected override bool IsOrdering(int depth)
         {
-            return depth <= 3;
+            return depth <= 4;
         }
 
         /// <summary>
