@@ -267,7 +267,7 @@ namespace Reluca.Accessors
                 context.Turn = Disc.Color.Black;
             }
             context.TurnCount++;
-            context.Stage = context.TurnCount / 4;
+            context.Stage = (context.TurnCount + 4) / 4;
         }
 
         /// <summary>
