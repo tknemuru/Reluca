@@ -1,6 +1,8 @@
 ﻿using Reluca.Accessors;
+using Reluca.Analyzers;
 using Reluca.Contexts;
 using Reluca.Di;
+using Reluca.Models;
 using Reluca.Updaters;
 using System;
 using System.Collections.Generic;
@@ -17,6 +19,16 @@ namespace Reluca.Services
     public class GameEndJudge : IServiceable<GameContext, bool>
     {
         /// <summary>
+        /// 着手可能数分析機能
+        /// </summary>
+        private MobilityAnalyzer? MobilityAnalyzer { get; set; }
+
+        public GameEndJudge()
+        {
+            MobilityAnalyzer = DiProvider.Get().GetService<MobilityAnalyzer>();
+        }
+
+        /// <summary>
         /// ゲーム終了かどうかを判定します。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
@@ -31,22 +43,9 @@ namespace Reluca.Services
 
             // 着手可能な指し手があるか
             var _context = BoardAccessor.DeepCopy(context);
-            var updater = DiProvider.Get().GetService<MobilityUpdater>();
-            var ownResult = updater.Update(_context);
-            // 自身の指し手が存在したらゲーム続行
-            if (ownResult.Count > 0)
-            {
-                return false;
-            }
-            BoardAccessor.Pass(_context);
-            var oppositeResult = updater.Update(_context);
-            // 相手の指し手が存在したらゲーム続行
-            if (oppositeResult.Count > 0)
-            {
-                return false;
-            }
-
-            return true;
+            var black = MobilityAnalyzer.Analyze(context, Disc.Color.Black).Count;
+            var white = MobilityAnalyzer.Analyze(context, Disc.Color.White).Count;
+            return black <= 0 && white <= 0;
         }
     }
 }
