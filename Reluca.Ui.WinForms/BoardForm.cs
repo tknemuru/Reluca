@@ -82,8 +82,8 @@ namespace Reluca.Ui.WinForms
                 WhitePlayerNameLabel.Text = "白：プレイヤ2";
             } else
             {
-                BlackPlayerNameLabel.Text = "黒：あなた";
-                WhitePlayerNameLabel.Text = "白：CPU";
+                BlackPlayerNameLabel.Text = "黒：CPU";
+                WhitePlayerNameLabel.Text = "白：あなた";
             }
 
             DiscPictures = new List<PictureBox>();
@@ -106,6 +106,7 @@ namespace Reluca.Ui.WinForms
             Context = new GameContext();
             DiProvider.Get().GetService<InitializeUpdater>().Update(Context);
             BoardAccessor.Pass(Context);
+            Context.TurnCount = -1;
             Next();
         }
 

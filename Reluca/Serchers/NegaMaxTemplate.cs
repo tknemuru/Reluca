@@ -18,12 +18,12 @@ namespace Reluca.Serchers
         /// <summary>
         /// <para>初期アルファ値</para>
         /// </summary>
-        protected const long DefaultAlpha = -1000000000000000000L;
+        protected const long DefaultAlpha = -1000000000000000001L;
 
         /// <summary>
         /// <para>初期ベータ値</para>
         /// </summary>
-        protected const long DefaultBeta = 1000000000000000000L;
+        protected const long DefaultBeta = 1000000000000000001L;
 
         /// <summary>
         /// 評価値
