@@ -54,6 +54,11 @@ namespace Reluca.Serchers
         private EvalCacher? EvalCacher { get; set; }
 
         /// <summary>
+        /// 裏返し結果のキャッシュ機能
+        /// </summary>
+        private ReverseResultCacher? ReverseResultCacher { get; set; }
+
+        /// <summary>
         /// 探索する深さ
         /// </summary>
         protected int LimitDepth { get; set; }
@@ -69,6 +74,7 @@ namespace Reluca.Serchers
             ReverseUpdater = DiProvider.Get().GetService<MoveAndReverseUpdater>();
             MobilityCacher = DiProvider.Get().GetService<MobilityCacher>();
             EvalCacher = DiProvider.Get().GetService<EvalCacher>();
+            ReverseResultCacher = DiProvider.Get().GetService<ReverseResultCacher>();
             LimitDepth = DefaultLimitDepth;
         }
 
@@ -91,8 +97,9 @@ namespace Reluca.Serchers
         public override int Search(GameContext context)
         {
             // 古いキャッシュをクリアする
-            DiProvider.Get().GetService<MobilityCacher>().Dispose(context);
-            DiProvider.Get().GetService<EvalCacher>().Dispose(context);
+            MobilityCacher.Dispose(context);
+            EvalCacher.Dispose(context);
+            ReverseResultCacher.Dispose(context);
 
             return base.Search(context);
         }
@@ -183,7 +190,15 @@ namespace Reluca.Serchers
 
             // 指す
             copyContext.Move = move;
+            if (ReverseResultCacher.TryGet(copyContext, out var cBoard))
+            {
+                copyContext.Board = cBoard;
+                // ターンをまわす
+                BoardAccessor.NextTurn(copyContext);
+                return copyContext;
+            }
             ReverseUpdater.Update(copyContext);
+            ReverseResultCacher.Add(move, context, copyContext.Board);
 
             // ターンをまわす
             BoardAccessor.NextTurn(copyContext);

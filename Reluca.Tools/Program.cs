@@ -9,6 +9,9 @@ switch (args[0])
     case "ScoreFileAdjuster":
         ScoreFileAdjuster.Adjust();
         break;
+    case "ValidStateExtractor":
+        new ValidStateExtractor().Extract();
+        break;
     default:
         Console.WriteLine("想定外の引数です。");
         break;

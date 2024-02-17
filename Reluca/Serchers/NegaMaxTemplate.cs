@@ -112,8 +112,7 @@ namespace Reluca.Serchers
             {
                 // ▼パスの場合▼
                 // 前処理
-                var copyContext = BoardAccessor.DeepCopy(context);
-                PassSetUp(copyContext);
+                var copyContext = PassSetUp(context);
 
                 maxKeyValue = SearchBestValue(copyContext, depth + 1, -beta, -alpha) * -1L;
 

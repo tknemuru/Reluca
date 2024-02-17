@@ -71,6 +71,7 @@ namespace Reluca.Di
             services.AddSingleton<FindBestMover, FindBestMover>();
             services.AddSingleton<MobilityCacher, MobilityCacher>();
             services.AddSingleton<EvalCacher, EvalCacher>();
+            services.AddSingleton<ReverseResultCacher, ReverseResultCacher>();
 
             services.AddTransient<NegaMax, NegaMax>();
             services.AddTransient<CachedNegaMax, CachedNegaMax>();
