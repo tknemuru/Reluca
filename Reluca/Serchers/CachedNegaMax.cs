@@ -26,7 +26,7 @@ namespace Reluca.Serchers
         /// <summary>
         /// 深さの制限
         /// </summary>
-        private const int DefaultLimitDepth = 9;
+        private const int DefaultLimitDepth = 8;
 
         /// <summary>
         /// 評価機能
