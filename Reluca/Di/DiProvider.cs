@@ -1,10 +1,18 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿/// <summary>
+/// 【ModuleDoc】
+/// 責務: アプリケーション全体の依存性注入コンテナを管理する
+/// 入出力: なし（静的プロバイダ）
+/// 副作用: 初回アクセス時にサービスコンテナを構築
+/// </summary>
+using Microsoft.Extensions.DependencyInjection;
 using Reluca.Analyzers;
 using Reluca.Cachers;
 using Reluca.Contexts;
 using Reluca.Converters;
 using Reluca.Evaluates;
 using Reluca.Movers;
+using Reluca.Search;
+using Reluca.Search.Transposition;
 using Reluca.Serchers;
 using Reluca.Services;
 using Reluca.Updaters;
@@ -73,8 +81,13 @@ namespace Reluca.Di
             services.AddSingleton<EvalCacher, EvalCacher>();
             services.AddSingleton<ReverseResultCacher, ReverseResultCacher>();
 
+            // Transposition Table（Task 2 で追加、探索への統合は Task 3 以降）
+            services.AddSingleton<TranspositionTableConfig, TranspositionTableConfig>();
+            services.AddSingleton<ITranspositionTable, ZobristTranspositionTable>();
+
             services.AddTransient<NegaMax, NegaMax>();
             services.AddTransient<CachedNegaMax, CachedNegaMax>();
+            services.AddTransient<ISearchEngine, LegacySearchEngine>();
             var provider = services.BuildServiceProvider();
             return provider;
         }

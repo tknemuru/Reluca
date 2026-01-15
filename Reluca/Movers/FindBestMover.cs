@@ -1,13 +1,13 @@
-﻿using Reluca.Cachers;
+/// <summary>
+/// 【ModuleDoc】
+/// 責務: 最善手を決定するための入口を提供する
+/// 入出力: GameContext → int（最善手のインデックス）
+/// 副作用: DI から探索エンジンと評価関数を取得
+/// </summary>
 using Reluca.Contexts;
 using Reluca.Di;
 using Reluca.Evaluates;
-using Reluca.Serchers;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Reluca.Search;
 
 namespace Reluca.Movers
 {
@@ -19,9 +19,24 @@ namespace Reluca.Movers
     public class FindBestMover : IMovable
     {
         /// <summary>
-        /// 探索機能
+        /// 終盤と判定するターン数の閾値
         /// </summary>
-        private CachedNegaMax? Searcher { get; set; }
+        private const int EndgameTurnThreshold = 46;
+
+        /// <summary>
+        /// 終盤時の探索深さ
+        /// </summary>
+        private const int EndgameDepth = 99;
+
+        /// <summary>
+        /// 通常時の探索深さ
+        /// </summary>
+        private const int NormalDepth = 7;
+
+        /// <summary>
+        /// 探索エンジン
+        /// </summary>
+        private ISearchEngine? SearchEngine { get; set; }
 
         /// <summary>
         /// 指し手を決めます。
@@ -30,12 +45,26 @@ namespace Reluca.Movers
         /// <returns>指し手</returns>
         public int Move(GameContext context)
         {
-            Searcher = DiProvider.Get().GetService<CachedNegaMax>();
-            if (context.TurnCount >= 46)
+            SearchEngine = DiProvider.Get().GetService<ISearchEngine>();
+
+            // 終盤 Evaluator 切替ロジック（従来の挙動を維持）
+            IEvaluable evaluator;
+            int depth;
+            if (context.TurnCount >= EndgameTurnThreshold)
             {
-                Searcher.Initialize(DiProvider.Get().GetService<DiscCountEvaluator>(), 99);
+                evaluator = DiProvider.Get().GetService<DiscCountEvaluator>();
+                depth = EndgameDepth;
             }
-            return Searcher.Search(context);
+            else
+            {
+                evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
+                depth = NormalDepth;
+            }
+
+            var options = new SearchOptions(depth);
+            var result = SearchEngine.Search(context, options, evaluator);
+
+            return result.BestMove;
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Reluca.Accessors;
+using Reluca.Accessors;
 using Reluca.Di;
 using Reluca.Evaluates;
 using Reluca.Models;
@@ -13,12 +13,23 @@ namespace Reluca.Tests.Serchers
 {
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
 #pragma warning disable CS8604
+    /// <summary>
+    /// NegaMax の単体テストクラスです。
+    /// </summary>
     [TestClass]
     public class NegaMaxTest : BaseUnitTest<NegaMax>
     {
+        /// <summary>
+        /// テストで使用する固定の探索深さ
+        /// デフォルト深さに依存しないため、テストでは深さを明示的に指定する
+        /// </summary>
+        private const int TestSearchDepth = 8;
+
         [TestMethod]
         public void 探索が行える()
         {
+            // デフォルト深さに依存しないため、深さを明示的に指定
+            Target.Initialize(DiProvider.Get().GetService<FeaturePatternEvaluator>(), TestSearchDepth);
             var context = CreateGameContext(1, 1, ResourceType.In);
             var orgContext = BoardAccessor.DeepCopy(context);
             var actual = Target.Search(context);
@@ -66,6 +77,8 @@ namespace Reluca.Tests.Serchers
         [TestMethod]
         public void 期待通りの最善手が選択できる()
         {
+            // デフォルト深さに依存しないため、深さを明示的に指定
+            Target.Initialize(DiProvider.Get().GetService<FeaturePatternEvaluator>(), TestSearchDepth);
             Target.Clear();
             var context = CreateGameContext(3, 1, ResourceType.In);
             var actual = Target.Search(context);
