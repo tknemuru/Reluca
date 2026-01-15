@@ -2,19 +2,20 @@
 /// 【ModuleDoc】
 /// 責務: PVS（Principal Variation Search / NegaScout）アルゴリズムによる探索を提供する
 /// 入出力: GameContext + SearchOptions + IEvaluable → SearchResult
-/// 副作用: なし（Cacher は使用しない）
+/// 副作用: TT 使用時は ITranspositionTable の内容を更新
 ///
 /// 設計方針:
 /// - Template Method を使用せず、明示的な制御フローで PVS を実装
-/// - Task 3a では TT / 反復深化 / MPC は一切使用しない
-/// - LegacySearchEngine と同一の探索結果を保証する
+/// - コンストラクタ DI により依存を注入（DiProvider.Get() は使用しない）
+/// - TT 統合は SearchOptions.UseTranspositionTable で切替可能
+/// - TT OFF 時は Task 3a と同一動作を保証
 /// </summary>
 using Reluca.Accessors;
 using Reluca.Analyzers;
 using Reluca.Contexts;
-using Reluca.Di;
 using Reluca.Evaluates;
 using Reluca.Models;
+using Reluca.Search.Transposition;
 using Reluca.Updaters;
 
 namespace Reluca.Search
@@ -48,6 +49,16 @@ namespace Reluca.Search
         private readonly MoveAndReverseUpdater _reverseUpdater;
 
         /// <summary>
+        /// 置換表
+        /// </summary>
+        private readonly ITranspositionTable _transpositionTable;
+
+        /// <summary>
+        /// Zobrist ハッシュ計算機能
+        /// </summary>
+        private readonly IZobristHash _zobristHash;
+
+        /// <summary>
         /// 探索中の最善手
         /// </summary>
         private int _bestMove;
@@ -63,12 +74,27 @@ namespace Reluca.Search
         private IEvaluable? _evaluator;
 
         /// <summary>
-        /// コンストラクタ。DI から依存を取得します。
+        /// 探索オプション
         /// </summary>
-        public PvsSearchEngine()
+        private SearchOptions? _options;
+
+        /// <summary>
+        /// コンストラクタ。DI から依存を注入します。
+        /// </summary>
+        /// <param name="mobilityAnalyzer">着手可能数分析機能</param>
+        /// <param name="reverseUpdater">石の裏返し更新機能</param>
+        /// <param name="transpositionTable">置換表</param>
+        /// <param name="zobristHash">Zobrist ハッシュ計算機能</param>
+        public PvsSearchEngine(
+            MobilityAnalyzer mobilityAnalyzer,
+            MoveAndReverseUpdater reverseUpdater,
+            ITranspositionTable transpositionTable,
+            IZobristHash zobristHash)
         {
-            _mobilityAnalyzer = DiProvider.Get().GetService<MobilityAnalyzer>();
-            _reverseUpdater = DiProvider.Get().GetService<MoveAndReverseUpdater>();
+            _mobilityAnalyzer = mobilityAnalyzer;
+            _reverseUpdater = reverseUpdater;
+            _transpositionTable = transpositionTable;
+            _zobristHash = zobristHash;
             _bestMove = -1;
         }
 
@@ -84,11 +110,15 @@ namespace Reluca.Search
             _bestMove = -1;
             _maxDepth = options.MaxDepth;
             _evaluator = evaluator;
+            _options = options;
+
+            // TT 使用時は探索開始前にクリア
+            if (options.UseTranspositionTable)
+            {
+                _transpositionTable.Clear();
+            }
 
             // PVS 探索を実行
-            // 既存の NegaMax は depth=1 から開始し depth >= maxDepth で評価する
-            // つまり maxDepth-1 レベル探索後に評価
-            // remainingDepth 方式では remainingDepth = maxDepth - 1 から開始し 0 で評価
             var value = Pvs(context, _maxDepth - 1, DefaultAlpha, DefaultBeta, false);
 
             return new SearchResult(_bestMove, value);
@@ -96,8 +126,6 @@ namespace Reluca.Search
 
         /// <summary>
         /// PVS（Principal Variation Search）の再帰探索メソッドです。
-        /// Task 3a では既存 NegaMax と同一結果を保証するため、
-        /// まず標準的な NegaMax として実装しています。
         /// </summary>
         /// <param name="context">現在のゲーム状態</param>
         /// <param name="remainingDepth">残り探索深さ（0 で評価）</param>
@@ -113,13 +141,44 @@ namespace Reluca.Search
                 return Evaluate(context);
             }
 
+            // originalAlpha を保存（Store 時の BoundType 判定用）
+            long originalAlpha = alpha;
+
+            // TT Probe
+            ulong hash = 0;
+            if (_options?.UseTranspositionTable == true)
+            {
+                hash = _zobristHash.ComputeHash(context);
+                if (_transpositionTable.TryProbe(hash, remainingDepth, alpha, beta, out var entry))
+                {
+                    // ルートノードでは bestMove を更新
+                    if (remainingDepth == _maxDepth - 1 && entry.BestMove != TTEntry.NoBestMove)
+                    {
+                        _bestMove = entry.BestMove;
+                    }
+                    return entry.Value;
+                }
+            }
+
             // 合法手を取得
             var moves = _mobilityAnalyzer.Analyze(context);
 
             long maxValue = DefaultAlpha;
+            int localBestMove = TTEntry.NoBestMove;
 
             if (moves.Count > 0)
             {
+                // TT の bestMove を先頭に移動（Move Ordering 改善）
+                if (_options?.UseTranspositionTable == true)
+                {
+                    int ttMove = _transpositionTable.GetBestMove(hash);
+                    if (ttMove != TTEntry.NoBestMove && moves.Contains(ttMove))
+                    {
+                        moves.Remove(ttMove);
+                        moves.Insert(0, ttMove);
+                    }
+                }
+
                 // Move Ordering（既存と同じ条件: depth <= 6 相当）
                 if (ShouldOrder(remainingDepth))
                 {
@@ -138,6 +197,13 @@ namespace Reluca.Search
                     if (score >= beta)
                     {
                         UpdateBestMove(move, remainingDepth);
+
+                        // TT Store（LowerBound）
+                        if (_options?.UseTranspositionTable == true)
+                        {
+                            _transpositionTable.Store(hash, remainingDepth, score, BoundType.LowerBound, move);
+                        }
+
                         return score;
                     }
 
@@ -145,6 +211,7 @@ namespace Reluca.Search
                     if (score > maxValue)
                     {
                         maxValue = score;
+                        localBestMove = move;
                         UpdateBestMove(move, remainingDepth);
 
                         // アルファ値の更新
@@ -159,7 +226,30 @@ namespace Reluca.Search
                 maxValue = -Pvs(context, remainingDepth - 1, -beta, -alpha, true);
             }
 
+            // TT Store
+            if (_options?.UseTranspositionTable == true && moves.Count > 0)
+            {
+                var boundType = DetermineBoundType(maxValue, originalAlpha, beta);
+                _transpositionTable.Store(hash, remainingDepth, maxValue, boundType, localBestMove);
+            }
+
             return maxValue;
+        }
+
+        /// <summary>
+        /// BoundType を決定します。
+        /// </summary>
+        /// <param name="score">探索結果の評価値</param>
+        /// <param name="originalAlpha">探索開始時の alpha 値</param>
+        /// <param name="beta">探索開始時の beta 値</param>
+        /// <returns>BoundType</returns>
+        private static BoundType DetermineBoundType(long score, long originalAlpha, long beta)
+        {
+            if (score <= originalAlpha)
+                return BoundType.UpperBound;
+            if (score >= beta)
+                return BoundType.LowerBound;
+            return BoundType.Exact;
         }
 
         /// <summary>

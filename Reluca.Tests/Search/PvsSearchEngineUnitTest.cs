@@ -5,8 +5,8 @@
 /// 副作用: なし
 ///
 /// テスト方針:
-/// - LegacySearchEngine と同一局面・同一深さで BestMove / Value が一致すること
-/// - これにより PVS 実装の正しさを保証する
+/// - TT OFF で有効な手が返ることを確認
+/// - DI 経由での解決が正しく動作すること
 /// </summary>
 using Reluca.Accessors;
 using Reluca.Contexts;
@@ -31,17 +31,12 @@ namespace Reluca.Tests.Search
         private PvsSearchEngine Target { get; set; }
 
         /// <summary>
-        /// 比較用の LegacySearchEngine
-        /// </summary>
-        private LegacySearchEngine LegacyEngine { get; set; }
-
-        /// <summary>
         /// コンストラクタ
         /// </summary>
         public PvsSearchEngineUnitTest()
         {
-            Target = new PvsSearchEngine();
-            LegacyEngine = new LegacySearchEngine();
+            // DI 経由でインスタンスを取得
+            Target = DiProvider.Get().GetService<PvsSearchEngine>();
         }
 
         /// <summary>
@@ -58,8 +53,6 @@ namespace Reluca.Tests.Search
 
         /// <summary>
         /// 初期局面で探索が正常に動作し、有効な手を返す
-        /// 注: Cacher の状態汚染によりテスト順序で結果が変わる問題があるため、
-        ///     PvsSearchEngine 単体での動作確認を行う
         /// </summary>
         [TestMethod]
         public void 初期局面で探索が正常に動作する()
@@ -102,8 +95,6 @@ namespace Reluca.Tests.Search
 
         /// <summary>
         /// 終盤局面（DiscCountEvaluator）で探索が正常に動作する
-        /// 注: LegacySearchEngine との比較はテスト順序によるCacher汚染問題があるため、
-        ///     PvsSearchEngine 単体での動作確認のみ行う
         /// </summary>
         [TestMethod]
         public void 終盤局面で探索が正常に動作する()

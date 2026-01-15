@@ -22,12 +22,19 @@ namespace Reluca.Search
         public int MaxDepth { get; }
 
         /// <summary>
+        /// Transposition Table を使用するかどうか
+        /// </summary>
+        public bool UseTranspositionTable { get; }
+
+        /// <summary>
         /// コンストラクタ
         /// </summary>
         /// <param name="maxDepth">最大探索深さ（省略時はデフォルト値）</param>
-        public SearchOptions(int maxDepth = DefaultMaxDepth)
+        /// <param name="useTranspositionTable">Transposition Table を使用するか（省略時は false）</param>
+        public SearchOptions(int maxDepth = DefaultMaxDepth, bool useTranspositionTable = false)
         {
             MaxDepth = maxDepth;
+            UseTranspositionTable = useTranspositionTable;
         }
     }
 }

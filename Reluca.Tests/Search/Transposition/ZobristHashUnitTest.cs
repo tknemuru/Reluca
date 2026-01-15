@@ -17,6 +17,19 @@ namespace Reluca.Tests.Search.Transposition
     public class ZobristHashUnitTest
     {
         /// <summary>
+        /// テスト対象のインスタンス
+        /// </summary>
+        private readonly IZobristHash _zobristHash;
+
+        /// <summary>
+        /// コンストラクタ
+        /// </summary>
+        public ZobristHashUnitTest()
+        {
+            _zobristHash = new ZobristHash();
+        }
+
+        /// <summary>
         /// 同一盤面は同一ハッシュを返す
         /// </summary>
         [TestMethod]
@@ -27,8 +40,8 @@ namespace Reluca.Tests.Search.Transposition
             var context2 = CreateInitialPosition();
 
             // Act
-            var hash1 = ZobristHash.ComputeHash(context1);
-            var hash2 = ZobristHash.ComputeHash(context2);
+            var hash1 = _zobristHash.ComputeHash(context1);
+            var hash2 = _zobristHash.ComputeHash(context2);
 
             // Assert
             Assert.AreEqual(hash1, hash2, "同一盤面のハッシュが異なります");
@@ -42,7 +55,7 @@ namespace Reluca.Tests.Search.Transposition
         {
             // Arrange: 初期局面
             var context1 = CreateInitialPosition();
-            var hash1 = ZobristHash.ComputeHash(context1);
+            var hash1 = _zobristHash.ComputeHash(context1);
 
             // 1手進めた局面（d3に黒石を置き、d4を裏返す）
             var context2 = CreateInitialPosition();
@@ -52,7 +65,7 @@ namespace Reluca.Tests.Search.Transposition
             context2.Turn = Disc.Color.White; // 白番に
 
             // Act
-            var hash2 = ZobristHash.ComputeHash(context2);
+            var hash2 = _zobristHash.ComputeHash(context2);
 
             // Assert
             Assert.AreNotEqual(hash1, hash2, "1手進めた盤面のハッシュが同じです");
@@ -72,8 +85,8 @@ namespace Reluca.Tests.Search.Transposition
             contextWhite.Turn = Disc.Color.White;
 
             // Act
-            var hashBlack = ZobristHash.ComputeHash(contextBlack);
-            var hashWhite = ZobristHash.ComputeHash(contextWhite);
+            var hashBlack = _zobristHash.ComputeHash(contextBlack);
+            var hashWhite = _zobristHash.ComputeHash(contextWhite);
 
             // Assert
             Assert.AreNotEqual(hashBlack, hashWhite, "手番が異なる盤面のハッシュが同じです");
@@ -97,14 +110,14 @@ namespace Reluca.Tests.Search.Transposition
             };
 
             // Act
-            var hash = ZobristHash.ComputeHash(context);
+            var hash = _zobristHash.ComputeHash(context);
 
             // Assert: 黒番で空盤面なのでハッシュは 0
             Assert.AreEqual(0UL, hash, "空盤面の黒番ハッシュは 0 であるべきです");
 
             // 白番にすると TurnKey だけになる
             context.Turn = Disc.Color.White;
-            var hashWhite = ZobristHash.ComputeHash(context);
+            var hashWhite = _zobristHash.ComputeHash(context);
             Assert.AreEqual(ZobristKeys.TurnKey, hashWhite,
                 "空盤面の白番ハッシュは TurnKey であるべきです");
         }
@@ -119,9 +132,9 @@ namespace Reluca.Tests.Search.Transposition
             var context = CreateInitialPosition();
 
             // Act: 複数回計算
-            var hash1 = ZobristHash.ComputeHash(context);
-            var hash2 = ZobristHash.ComputeHash(context);
-            var hash3 = ZobristHash.ComputeHash(context);
+            var hash1 = _zobristHash.ComputeHash(context);
+            var hash2 = _zobristHash.ComputeHash(context);
+            var hash3 = _zobristHash.ComputeHash(context);
 
             // Assert: すべて同一
             Assert.AreEqual(hash1, hash2, "同一局面の複数回計算で異なるハッシュ");

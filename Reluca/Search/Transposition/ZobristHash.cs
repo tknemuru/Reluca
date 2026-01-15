@@ -5,7 +5,7 @@
 /// 副作用: なし
 ///
 /// 備考:
-/// - Task 2 では差分更新（UpdateHash）は未実装（将来の最適化として検討）
+/// - Task 3c での差分更新実装を見据え、インスタンスクラスに変更
 /// - 現状は ComputeHash でフルスキャン計算のみを提供
 /// </summary>
 using Reluca.Contexts;
@@ -17,7 +17,7 @@ namespace Reluca.Search.Transposition
     /// Zobrist ハッシュを計算するクラスです。
     /// 盤面状態と手番から一意のハッシュ値を生成し、置換表のキーとして使用します。
     /// </summary>
-    public static class ZobristHash
+    public class ZobristHash : IZobristHash
     {
         /// <summary>
         /// 盤面のマス数（8×8）。
@@ -30,7 +30,7 @@ namespace Reluca.Search.Transposition
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <returns>計算されたハッシュ値</returns>
-        public static ulong ComputeHash(GameContext context)
+        public ulong ComputeHash(GameContext context)
         {
             ulong hash = 0;
 
