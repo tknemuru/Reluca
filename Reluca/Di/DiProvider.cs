@@ -81,9 +81,10 @@ namespace Reluca.Di
             services.AddSingleton<EvalCacher, EvalCacher>();
             services.AddSingleton<ReverseResultCacher, ReverseResultCacher>();
 
-            // Transposition Table（Task 2 で追加、探索への統合は Task 3 以降）
+            // Transposition Table（Task 2 で追加）
             services.AddSingleton<TranspositionTableConfig, TranspositionTableConfig>();
             services.AddSingleton<ITranspositionTable, ZobristTranspositionTable>();
+            services.AddSingleton<IZobristHash, ZobristHash>();
 
             services.AddTransient<NegaMax, NegaMax>();
             services.AddTransient<CachedNegaMax, CachedNegaMax>();
