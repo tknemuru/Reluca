@@ -88,6 +88,7 @@ namespace Reluca.Di
             services.AddTransient<NegaMax, NegaMax>();
             services.AddTransient<CachedNegaMax, CachedNegaMax>();
             services.AddTransient<ISearchEngine, LegacySearchEngine>();
+            services.AddTransient<PvsSearchEngine, PvsSearchEngine>();
             var provider = services.BuildServiceProvider();
             return provider;
         }
