@@ -12,6 +12,7 @@ using Reluca.Converters;
 using Reluca.Evaluates;
 using Reluca.Movers;
 using Reluca.Search;
+using Reluca.Search.Transposition;
 using Reluca.Serchers;
 using Reluca.Services;
 using Reluca.Updaters;
@@ -79,6 +80,10 @@ namespace Reluca.Di
             services.AddSingleton<MobilityCacher, MobilityCacher>();
             services.AddSingleton<EvalCacher, EvalCacher>();
             services.AddSingleton<ReverseResultCacher, ReverseResultCacher>();
+
+            // Transposition Table（Task 2 で追加、探索への統合は Task 3 以降）
+            services.AddSingleton<TranspositionTableConfig, TranspositionTableConfig>();
+            services.AddSingleton<ITranspositionTable, ZobristTranspositionTable>();
 
             services.AddTransient<NegaMax, NegaMax>();
             services.AddTransient<CachedNegaMax, CachedNegaMax>();
