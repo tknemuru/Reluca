@@ -8,7 +8,14 @@
 /// - Template Method を使用せず、明示的な制御フローで PVS を実装
 /// - コンストラクタ DI により依存を注入（DiProvider.Get() は使用しない）
 /// - TT 統合は SearchOptions.UseTranspositionTable で切替可能
-/// - TT OFF 時は Task 3a と同一動作を保証
+/// - 反復深化（Iterative Deepening）により depth=1..MaxDepth を順次探索
+/// - TT Clear は Search セッション冒頭で1回のみ（反復ごとの Clear は禁止）
+///
+/// RootSearch の責務:
+/// - ルート局面の合法手列挙と手順序の最適化
+/// - 手順序優先順位: 1) TT bestMove, 2) 前回反復の bestMove, 3) その他
+/// - Move Ordering（評価値ソート）は既存条件（depth <= 6 相当）に従う
+/// - ルートでの bestMove 更新を一元管理
 /// </summary>
 using Reluca.Accessors;
 using Reluca.Analyzers;
@@ -25,6 +32,7 @@ namespace Reluca.Search
     /// PVS（Principal Variation Search）アルゴリズムによる探索エンジンです。
     /// NegaScout とも呼ばれ、最初の手をフルウィンドウで探索し、
     /// 2手目以降は Null Window Search で枝刈りを試みます。
+    /// 反復深化（Iterative Deepening）により効率的な探索を実現します。
     /// </summary>
     public class PvsSearchEngine : ISearchEngine
     {
@@ -64,9 +72,9 @@ namespace Reluca.Search
         private int _bestMove;
 
         /// <summary>
-        /// 探索時の最大深さ（Move Ordering 判定用）
+        /// 探索時の現在深さ（Move Ordering 判定用）
         /// </summary>
-        private int _maxDepth;
+        private int _currentDepth;
 
         /// <summary>
         /// 探索時の評価関数
@@ -100,6 +108,7 @@ namespace Reluca.Search
 
         /// <summary>
         /// 指定されたゲーム状態から最善手を探索します。
+        /// 反復深化（Iterative Deepening）により depth=1 から MaxDepth まで順次探索します。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <param name="options">探索オプション</param>
@@ -108,24 +117,140 @@ namespace Reluca.Search
         public SearchResult Search(GameContext context, SearchOptions options, IEvaluable evaluator)
         {
             _bestMove = -1;
-            _maxDepth = options.MaxDepth;
             _evaluator = evaluator;
             _options = options;
 
-            // TT 使用時は探索開始前にクリア
+            // TT 使用時は探索開始前に1回だけクリア（反復ごとの Clear は禁止）
             if (options.UseTranspositionTable)
             {
                 _transpositionTable.Clear();
             }
 
-            // PVS 探索を実行
-            var value = Pvs(context, _maxDepth - 1, DefaultAlpha, DefaultBeta, false);
+            // 反復深化: depth=1 から MaxDepth まで
+            SearchResult result = new SearchResult(-1, 0);
+            for (int depth = 1; depth <= options.MaxDepth; depth++)
+            {
+                _currentDepth = depth;
+                result = RootSearch(context, depth);
+            }
 
-            return new SearchResult(_bestMove, value);
+            return result;
+        }
+
+        /// <summary>
+        /// ルート局面での探索を行います。
+        /// 手順序の最適化と bestMove の更新を一元管理します。
+        /// </summary>
+        /// <param name="context">ゲーム状態</param>
+        /// <param name="depth">探索深さ</param>
+        /// <returns>探索結果（最善手と評価値）</returns>
+        private SearchResult RootSearch(GameContext context, int depth)
+        {
+            // ルート局面の合法手を取得
+            var moves = _mobilityAnalyzer.Analyze(context);
+            if (moves.Count == 0)
+            {
+                return new SearchResult(-1, Evaluate(context));
+            }
+
+            // 手順序の最適化（優先順位: 1) TT bestMove, 2) 前回反復の bestMove, 3) その他）
+            moves = OptimizeMoveOrder(moves, context, depth);
+
+            long alpha = DefaultAlpha;
+            long beta = DefaultBeta;
+            long maxValue = DefaultAlpha;
+            int rootBestMove = moves[0]; // 最初の手をデフォルトとする
+
+            // ルートのハッシュを計算（TT Store 用）
+            ulong rootHash = 0;
+            if (_options?.UseTranspositionTable == true)
+            {
+                rootHash = _zobristHash.ComputeHash(context);
+            }
+
+            foreach (var move in moves)
+            {
+                var child = MakeMove(context, move);
+
+                // 再帰探索
+                // depth=1 の時 remainingDepth=0 で即評価
+                // depth=N の時 remainingDepth=N-1 で (N-1) レベル探索
+                long score = -Pvs(child, depth - 1, -beta, -alpha, false);
+
+                if (score > maxValue)
+                {
+                    maxValue = score;
+                    rootBestMove = move;
+                    alpha = Math.Max(alpha, maxValue);
+                }
+            }
+
+            _bestMove = rootBestMove;
+
+            // TT Store（ルート局面）
+            if (_options?.UseTranspositionTable == true)
+            {
+                _transpositionTable.Store(rootHash, depth, maxValue, BoundType.Exact, rootBestMove);
+            }
+
+            return new SearchResult(rootBestMove, maxValue);
+        }
+
+        /// <summary>
+        /// 手順序を最適化します。
+        /// 優先順位: 1) TT bestMove, 2) 前回反復の bestMove, 3) その他（条件付きで評価値ソート）
+        /// </summary>
+        /// <param name="moves">合法手リスト</param>
+        /// <param name="context">ゲーム状態</param>
+        /// <param name="depth">探索深さ</param>
+        /// <returns>最適化された手順序</returns>
+        private List<int> OptimizeMoveOrder(List<int> moves, GameContext context, int depth)
+        {
+            int? ttMove = null;
+            int? prevBestMove = null;
+
+            // 1) TT bestMove を取得
+            if (_options?.UseTranspositionTable == true)
+            {
+                ulong hash = _zobristHash.ComputeHash(context);
+                int ttBestMove = _transpositionTable.GetBestMove(hash);
+                if (ttBestMove != TTEntry.NoBestMove && moves.Contains(ttBestMove))
+                {
+                    ttMove = ttBestMove;
+                }
+            }
+
+            // 2) 前回反復の bestMove
+            if (_bestMove != -1 && moves.Contains(_bestMove) && _bestMove != ttMove)
+            {
+                prevBestMove = _bestMove;
+            }
+
+            // 3) Move Ordering（評価値ソート）- 既存条件に従う
+            if (ShouldOrder(depth - 1))
+            {
+                moves = OrderMoves(moves, context);
+            }
+
+            // 優先手を先頭に移動（後から挿入するので逆順で処理）
+            if (prevBestMove.HasValue)
+            {
+                moves.Remove(prevBestMove.Value);
+                moves.Insert(0, prevBestMove.Value);
+            }
+
+            if (ttMove.HasValue)
+            {
+                moves.Remove(ttMove.Value);
+                moves.Insert(0, ttMove.Value);
+            }
+
+            return moves;
         }
 
         /// <summary>
         /// PVS（Principal Variation Search）の再帰探索メソッドです。
+        /// ルート以外のノードで使用します。
         /// </summary>
         /// <param name="context">現在のゲーム状態</param>
         /// <param name="remainingDepth">残り探索深さ（0 で評価）</param>
@@ -151,11 +276,6 @@ namespace Reluca.Search
                 hash = _zobristHash.ComputeHash(context);
                 if (_transpositionTable.TryProbe(hash, remainingDepth, alpha, beta, out var entry))
                 {
-                    // ルートノードでは bestMove を更新
-                    if (remainingDepth == _maxDepth - 1 && entry.BestMove != TTEntry.NoBestMove)
-                    {
-                        _bestMove = entry.BestMove;
-                    }
                     return entry.Value;
                 }
             }
@@ -196,8 +316,6 @@ namespace Reluca.Search
                     // ベータカット
                     if (score >= beta)
                     {
-                        UpdateBestMove(move, remainingDepth);
-
                         // TT Store（LowerBound）
                         if (_options?.UseTranspositionTable == true)
                         {
@@ -212,7 +330,6 @@ namespace Reluca.Search
                     {
                         maxValue = score;
                         localBestMove = move;
-                        UpdateBestMove(move, remainingDepth);
 
                         // アルファ値の更新
                         alpha = Math.Max(alpha, maxValue);
@@ -288,10 +405,10 @@ namespace Reluca.Search
         private bool ShouldOrder(int remainingDepth)
         {
             // 既存: depth <= 6 でソート
-            // depth = _maxDepth - remainingDepth（remainingDepth が maxDepth-1 から開始するため）
-            // depth <= 6 ⇔ _maxDepth - remainingDepth <= 6
-            //            ⇔ remainingDepth >= _maxDepth - 6
-            return remainingDepth >= _maxDepth - 6;
+            // depth = _currentDepth - remainingDepth
+            // depth <= 6 ⇔ _currentDepth - remainingDepth <= 6
+            //            ⇔ remainingDepth >= _currentDepth - 6
+            return remainingDepth >= _currentDepth - 6;
         }
 
         /// <summary>
@@ -314,20 +431,6 @@ namespace Reluca.Search
                 })
                 .ToList();
             return ordered;
-        }
-
-        /// <summary>
-        /// 最善手を更新します（ルートノードのみ）。
-        /// </summary>
-        /// <param name="move">指し手</param>
-        /// <param name="remainingDepth">残り探索深さ</param>
-        private void UpdateBestMove(int move, int remainingDepth)
-        {
-            // ルートノード（remainingDepth == _maxDepth - 1）でのみ更新
-            if (remainingDepth == _maxDepth - 1)
-            {
-                _bestMove = move;
-            }
         }
     }
 }
