@@ -1,10 +1,17 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿/// <summary>
+/// 【ModuleDoc】
+/// 責務: アプリケーション全体の依存性注入コンテナを管理する
+/// 入出力: なし（静的プロバイダ）
+/// 副作用: 初回アクセス時にサービスコンテナを構築
+/// </summary>
+using Microsoft.Extensions.DependencyInjection;
 using Reluca.Analyzers;
 using Reluca.Cachers;
 using Reluca.Contexts;
 using Reluca.Converters;
 using Reluca.Evaluates;
 using Reluca.Movers;
+using Reluca.Search;
 using Reluca.Serchers;
 using Reluca.Services;
 using Reluca.Updaters;
@@ -75,6 +82,7 @@ namespace Reluca.Di
 
             services.AddTransient<NegaMax, NegaMax>();
             services.AddTransient<CachedNegaMax, CachedNegaMax>();
+            services.AddTransient<ISearchEngine, LegacySearchEngine>();
             var provider = services.BuildServiceProvider();
             return provider;
         }

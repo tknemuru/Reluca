@@ -5,15 +5,15 @@ using Reluca.Helpers;
 
 namespace Reluca.Tests.Converters
 {
-#pragma warning disable CS8602 // null �Q�Ƃ̉\����������̂̋t�Q�Ƃł��B
+#pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
     /// <summary>
-    /// BoardStringToContextConverter�̒P�̃e�X�g�@�\��񋟂��܂��B
+    /// BoardStringToContextConverterの単体テスト機能を提供します。
     /// </summary>
     [TestClass]
     public class BoardContextToStringConverterTest : BaseUnitTest<BoardContextToStringConverter>
     {
         [TestMethod]
-        public void �Ղ̏�Ԃ�ϊ��ł���()
+        public void 盤の状態を変換できる()
         {
             var expected = IEnumerableHelper.IEnumerableToString(FileHelper.ReadTextLines(GetResourcePath(1, 1, ResourceType.Out)));
 
@@ -27,5 +27,5 @@ namespace Reluca.Tests.Converters
             Assert.AreEqual(expected, actual);
         }
     }
-#pragma warning restore CS8602 // null �Q�Ƃ̉\����������̂̋t�Q�Ƃł��B
+#pragma warning restore CS8602 // null 参照の可能性があるものの逆参照です。
 }
