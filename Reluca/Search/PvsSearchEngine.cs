@@ -23,7 +23,7 @@
 /// - 再探索回数超過時はフルウィンドウにフォールバック（正しさ担保）
 /// - fail-low/high 判定は初期窓境界（initialAlpha/initialBeta）で行う
 /// - δ 拡大時はオーバーフロー防止のため MaxDelta で clamp
-/// - fail-low/high 再探索時は TT Clear（狭い窓での結果が次の探索に影響するのを防止）
+/// - retry 中は TT Store を抑制し、最終確定時のみ Store を許可（TT Clear 不要）
 /// </summary>
 using Reluca.Accessors;
 using Reluca.Analyzers;
@@ -100,6 +100,11 @@ namespace Reluca.Search
         private SearchOptions? _options;
 
         /// <summary>
+        /// TT Store を抑制するフラグ（Aspiration retry 中は true）
+        /// </summary>
+        private bool _suppressTTStore;
+
+        /// <summary>
         /// コンストラクタ。DI から依存を注入します。
         /// </summary>
         /// <param name="mobilityAnalyzer">着手可能数分析機能</param>
@@ -168,6 +173,7 @@ namespace Reluca.Search
         /// <summary>
         /// Aspiration Window を使用したルート探索を行います。
         /// 前回反復の評価値を中心に狭い窓で探索し、fail-low/high 時は窓を広げて再探索します。
+        /// retry 中は TT への書き込みを抑制し、最終確定時のみ Store を許可します。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <param name="depth">探索深さ</param>
@@ -188,44 +194,34 @@ namespace Reluca.Search
                 long alpha = Math.Max(initialAlpha, DefaultAlpha);
                 long beta = Math.Min(initialBeta, DefaultBeta);
 
+                // retry 中は TT Store を抑制
+                _suppressTTStore = true;
                 var result = RootSearch(context, depth, alpha, beta);
 
                 // fail-low/high 判定は初期窓境界で行う
                 if (result.Value <= initialAlpha)
                 {
                     // fail-low: 窓が低すぎた → δ を拡大して再探索
-                    // TT に狭い窓での結果が残っているためクリア
-                    if (_options.UseTranspositionTable)
-                    {
-                        _transpositionTable.Clear();
-                    }
                     delta = Math.Min(delta * 2, MaxDelta);
                     retryCount++;
                 }
                 else if (result.Value >= initialBeta)
                 {
                     // fail-high: 窓が高すぎた → δ を拡大して再探索
-                    // TT に狭い窓での結果が残っているためクリア
-                    if (_options.UseTranspositionTable)
-                    {
-                        _transpositionTable.Clear();
-                    }
                     delta = Math.Min(delta * 2, MaxDelta);
                     retryCount++;
                 }
                 else
                 {
-                    // 成功: 窓内に収まった
-                    return result;
+                    // 成功: 窓内に収まった → TT Store を許可して再探索
+                    _suppressTTStore = false;
+                    return RootSearch(context, depth, alpha, beta);
                 }
             }
 
             // 再探索回数超過: フルウィンドウにフォールバック（正しさ担保）
-            // TT をクリアして正確な結果を得る
-            if (_options.UseTranspositionTable)
-            {
-                _transpositionTable.Clear();
-            }
+            // TT Store を許可
+            _suppressTTStore = false;
             return RootSearch(context, depth, DefaultAlpha, DefaultBeta);
         }
 
@@ -282,7 +278,8 @@ namespace Reluca.Search
             _bestMove = rootBestMove;
 
             // TT Store（ルート局面）- 正しい BoundType を判定
-            if (_options?.UseTranspositionTable == true)
+            // Aspiration retry 中は Store を抑制
+            if (_options?.UseTranspositionTable == true && !_suppressTTStore)
             {
                 var boundType = DetermineBoundType(maxValue, originalAlpha, beta);
                 _transpositionTable.Store(rootHash, depth, maxValue, boundType, rootBestMove);
@@ -411,8 +408,8 @@ namespace Reluca.Search
                     // ベータカット
                     if (score >= beta)
                     {
-                        // TT Store（LowerBound）
-                        if (_options?.UseTranspositionTable == true)
+                        // TT Store（LowerBound）- Aspiration retry 中は Store を抑制
+                        if (_options?.UseTranspositionTable == true && !_suppressTTStore)
                         {
                             _transpositionTable.Store(hash, remainingDepth, score, BoundType.LowerBound, move);
                         }
@@ -438,8 +435,8 @@ namespace Reluca.Search
                 maxValue = -Pvs(context, remainingDepth - 1, -beta, -alpha, true);
             }
 
-            // TT Store
-            if (_options?.UseTranspositionTable == true && moves.Count > 0)
+            // TT Store - Aspiration retry 中は Store を抑制
+            if (_options?.UseTranspositionTable == true && !_suppressTTStore && moves.Count > 0)
             {
                 var boundType = DetermineBoundType(maxValue, originalAlpha, beta);
                 _transpositionTable.Store(hash, remainingDepth, maxValue, boundType, localBestMove);
