@@ -16,6 +16,14 @@
 /// - 手順序優先順位: 1) TT bestMove, 2) 前回反復の bestMove, 3) その他
 /// - Move Ordering（評価値ソート）は既存条件（depth <= 6 相当）に従う
 /// - ルートでの bestMove 更新を一元管理
+///
+/// Aspiration Window の責務:
+/// - depth >= 2 で前回反復の評価値を中心に狭い窓で探索
+/// - fail-low/high 時は δ を2倍にして再探索（最大 AspirationMaxRetry 回）
+/// - 再探索回数超過時はフルウィンドウにフォールバック（正しさ担保）
+/// - fail-low/high 判定は初期窓境界（initialAlpha/initialBeta）で行う
+/// - δ 拡大時はオーバーフロー防止のため MaxDelta で clamp
+/// - fail-low/high 再探索時は TT Clear（狭い窓での結果が次の探索に影響するのを防止）
 /// </summary>
 using Reluca.Accessors;
 using Reluca.Analyzers;
@@ -45,6 +53,11 @@ namespace Reluca.Search
         /// 初期ベータ値
         /// </summary>
         private const long DefaultBeta = 1000000000000000001L;
+
+        /// <summary>
+        /// Aspiration δ の最大値（オーバーフロー防止）
+        /// </summary>
+        private const long MaxDelta = DefaultBeta - DefaultAlpha;
 
         /// <summary>
         /// 着手可能数分析機能
@@ -109,6 +122,7 @@ namespace Reluca.Search
         /// <summary>
         /// 指定されたゲーム状態から最善手を探索します。
         /// 反復深化（Iterative Deepening）により depth=1 から MaxDepth まで順次探索します。
+        /// Aspiration Window 有効時は depth >= 2 で狭い窓から探索を開始します。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <param name="options">探索オプション</param>
@@ -128,13 +142,91 @@ namespace Reluca.Search
 
             // 反復深化: depth=1 から MaxDepth まで
             SearchResult result = new SearchResult(-1, 0);
+            long prevValue = 0;
+
             for (int depth = 1; depth <= options.MaxDepth; depth++)
             {
                 _currentDepth = depth;
-                result = RootSearch(context, depth);
+
+                // Aspiration Window: depth >= 2 かつ UseAspirationWindow=true の場合
+                if (depth >= 2 && options.UseAspirationWindow)
+                {
+                    result = AspirationRootSearch(context, depth, prevValue);
+                }
+                else
+                {
+                    // depth=1 またはAspiration OFF: フルウィンドウで探索
+                    result = RootSearch(context, depth, DefaultAlpha, DefaultBeta);
+                }
+
+                prevValue = result.Value;
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Aspiration Window を使用したルート探索を行います。
+        /// 前回反復の評価値を中心に狭い窓で探索し、fail-low/high 時は窓を広げて再探索します。
+        /// </summary>
+        /// <param name="context">ゲーム状態</param>
+        /// <param name="depth">探索深さ</param>
+        /// <param name="prevValue">前回反復の評価値</param>
+        /// <returns>探索結果（最善手と評価値）</returns>
+        private SearchResult AspirationRootSearch(GameContext context, int depth, long prevValue)
+        {
+            long delta = _options!.AspirationDelta;
+            int retryCount = 0;
+
+            while (retryCount <= _options.AspirationMaxRetry)
+            {
+                // 初期窓を設定（判定用に保存）
+                long initialAlpha = prevValue - delta;
+                long initialBeta = prevValue + delta;
+
+                // 窓が DefaultAlpha/DefaultBeta を超えないように clamp
+                long alpha = Math.Max(initialAlpha, DefaultAlpha);
+                long beta = Math.Min(initialBeta, DefaultBeta);
+
+                var result = RootSearch(context, depth, alpha, beta);
+
+                // fail-low/high 判定は初期窓境界で行う
+                if (result.Value <= initialAlpha)
+                {
+                    // fail-low: 窓が低すぎた → δ を拡大して再探索
+                    // TT に狭い窓での結果が残っているためクリア
+                    if (_options.UseTranspositionTable)
+                    {
+                        _transpositionTable.Clear();
+                    }
+                    delta = Math.Min(delta * 2, MaxDelta);
+                    retryCount++;
+                }
+                else if (result.Value >= initialBeta)
+                {
+                    // fail-high: 窓が高すぎた → δ を拡大して再探索
+                    // TT に狭い窓での結果が残っているためクリア
+                    if (_options.UseTranspositionTable)
+                    {
+                        _transpositionTable.Clear();
+                    }
+                    delta = Math.Min(delta * 2, MaxDelta);
+                    retryCount++;
+                }
+                else
+                {
+                    // 成功: 窓内に収まった
+                    return result;
+                }
+            }
+
+            // 再探索回数超過: フルウィンドウにフォールバック（正しさ担保）
+            // TT をクリアして正確な結果を得る
+            if (_options.UseTranspositionTable)
+            {
+                _transpositionTable.Clear();
+            }
+            return RootSearch(context, depth, DefaultAlpha, DefaultBeta);
         }
 
         /// <summary>
@@ -143,8 +235,10 @@ namespace Reluca.Search
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <param name="depth">探索深さ</param>
+        /// <param name="alpha">アルファ値（下界）</param>
+        /// <param name="beta">ベータ値（上界）</param>
         /// <returns>探索結果（最善手と評価値）</returns>
-        private SearchResult RootSearch(GameContext context, int depth)
+        private SearchResult RootSearch(GameContext context, int depth, long alpha, long beta)
         {
             // ルート局面の合法手を取得
             var moves = _mobilityAnalyzer.Analyze(context);
@@ -156,8 +250,8 @@ namespace Reluca.Search
             // 手順序の最適化（優先順位: 1) TT bestMove, 2) 前回反復の bestMove, 3) その他）
             moves = OptimizeMoveOrder(moves, context, depth);
 
-            long alpha = DefaultAlpha;
-            long beta = DefaultBeta;
+            // originalAlpha を保存（BoundType 判定用）
+            long originalAlpha = alpha;
             long maxValue = DefaultAlpha;
             int rootBestMove = moves[0]; // 最初の手をデフォルトとする
 
@@ -187,10 +281,11 @@ namespace Reluca.Search
 
             _bestMove = rootBestMove;
 
-            // TT Store（ルート局面）
+            // TT Store（ルート局面）- 正しい BoundType を判定
             if (_options?.UseTranspositionTable == true)
             {
-                _transpositionTable.Store(rootHash, depth, maxValue, BoundType.Exact, rootBestMove);
+                var boundType = DetermineBoundType(maxValue, originalAlpha, beta);
+                _transpositionTable.Store(rootHash, depth, maxValue, boundType, rootBestMove);
             }
 
             return new SearchResult(rootBestMove, maxValue);
