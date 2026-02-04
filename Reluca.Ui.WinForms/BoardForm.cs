@@ -9,21 +9,61 @@ using System.Reflection;
 
 namespace Reluca.Ui.WinForms
 {
-#pragma warning disable CS8602 // null QÆ‚Ì‰Â”\«‚ª‚ ‚é‚à‚Ì‚Ì‹tQÆ‚Å‚·B
-#pragma warning disable CS8618 // null ”ñ‹–—e‚ÌƒtƒB[ƒ‹ƒh‚É‚ÍAƒRƒ“ƒXƒgƒ‰ƒNƒ^[‚ÌI—¹‚É null ˆÈŠO‚Ì’l‚ª“ü‚Á‚Ä‚¢‚È‚¯‚ê‚Î‚È‚è‚Ü‚¹‚ñBNull ‹–—e‚Æ‚µ‚ÄéŒ¾‚·‚é‚±‚Æ‚ğ‚²ŒŸ“¢‚­‚¾‚³‚¢B
+#pragma warning disable CS8602 // null å‚ç…§ã®å¯èƒ½æ€§ãŒã‚ã‚‹ã‚‚ã®ã®é€†å‚ç…§ã§ã™ã€‚
+#pragma warning disable CS8618 // null éè¨±å®¹ã®ãƒ•ã‚£ãƒ¼ãƒ«ãƒ‰ã«ã¯ã€ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ãƒ¼ã®çµ‚äº†æ™‚ã« null ä»¥å¤–ã®å€¤ãŒå…¥ã£ã¦ã„ãªã‘ã‚Œã°ãªã‚Šã¾ã›ã‚“ã€‚Null è¨±å®¹ã¨ã—ã¦å®£è¨€ã™ã‚‹ã“ã¨ã‚’ã”æ¤œè¨ãã ã•ã„ã€‚
 #pragma warning disable CS8622
     /// <summary>
-    /// ”ÕƒtƒH[ƒ€
+    /// ç›¤ãƒ•ã‚©ãƒ¼ãƒ 
     /// </summary>
     public partial class BoardForm : Form
     {
         /// <summary>
-        /// Î‚ÌƒsƒNƒ`ƒƒƒRƒ“ƒgƒ[ƒ‹–¼‚ÌÚ“ª«
+        /// çŸ³ã®ãƒ”ã‚¯ãƒãƒ£ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ«åã®æ¥é ­è¾
         /// </summary>
         private const string DiscPictureNamePrefix = "DiscPictureBox";
 
         /// <summary>
-        /// ”Õ‚Ìó‘Ô‚É‘Î‰‚µ‚½‰æ‘œ
+        /// å…ƒã®ãƒ‡ã‚¶ã‚¤ãƒ³æ™‚ã®BoardPictureBoxå¹…ï¼ˆ100% DPIæ™‚ï¼‰
+        /// </summary>
+        private const double OriginalBoardWidth = 1000.0;
+
+        /// <summary>
+        /// å…ƒã®ãƒ‡ã‚¶ã‚¤ãƒ³æ™‚ã®BoardPictureBoxé«˜ã•ï¼ˆ100% DPIæ™‚ï¼‰
+        /// </summary>
+        private const double OriginalBoardHeight = 1000.0;
+
+        /// <summary>
+        /// å…ƒã®ãƒ‡ã‚¶ã‚¤ãƒ³æ™‚ã®çŸ³ã®é–‹å§‹ã‚ªãƒ•ã‚»ãƒƒãƒˆXï¼ˆBoardPictureBoxå†…ã§ã®ç›¸å¯¾ä½ç½®ï¼‰
+        /// </summary>
+        private const double OriginalOffsetX = 19.0;
+
+        /// <summary>
+        /// å…ƒã®ãƒ‡ã‚¶ã‚¤ãƒ³æ™‚ã®çŸ³ã®é–‹å§‹ã‚ªãƒ•ã‚»ãƒƒãƒˆYï¼ˆBoardPictureBoxå†…ã§ã®ç›¸å¯¾ä½ç½®ï¼‰
+        /// </summary>
+        private const double OriginalOffsetY = 21.0;
+
+        /// <summary>
+        /// å…ƒã®ãƒ‡ã‚¶ã‚¤ãƒ³æ™‚ã®ã‚»ãƒ«ãƒ”ãƒƒãƒX
+        /// </summary>
+        private const double OriginalCellPitchX = 121.0;
+
+        /// <summary>
+        /// å…ƒã®ãƒ‡ã‚¶ã‚¤ãƒ³æ™‚ã®ã‚»ãƒ«ãƒ”ãƒƒãƒY
+        /// </summary>
+        private const double OriginalCellPitchY = 121.0;
+
+        /// <summary>
+        /// å…ƒã®ãƒ‡ã‚¶ã‚¤ãƒ³æ™‚ã®çŸ³ã®å¹…
+        /// </summary>
+        private const double OriginalDiscWidth = 114.0;
+
+        /// <summary>
+        /// å…ƒã®ãƒ‡ã‚¶ã‚¤ãƒ³æ™‚ã®çŸ³ã®é«˜ã•
+        /// </summary>
+        private const double OriginalDiscHeight = 114.0;
+
+        /// <summary>
+        /// ç›¤ã®çŠ¶æ…‹ã«å¯¾å¿œã—ãŸç”»åƒ
         /// </summary>
         private static Dictionary<Board.Status, Bitmap> StateImages = new Dictionary<Board.Status, Bitmap>()
         {
@@ -34,27 +74,27 @@ namespace Reluca.Ui.WinForms
         };
 
         /// <summary>
-        /// ‹N“®Œ³ƒtƒH[ƒ€
+        /// èµ·å‹•å…ƒãƒ•ã‚©ãƒ¼ãƒ 
         /// </summary>
         private StartForm StartForm { get; set; }
 
         /// <summary>
-        /// ƒvƒŒƒCƒ„ƒŠƒXƒg
+        /// ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒªã‚¹ãƒˆ
         /// </summary>
         private Dictionary<Disc.Color, Player.Type> Players { get; set; }
 
         /// <summary>
-        /// Î‚ÌƒsƒNƒ`ƒƒƒRƒ“ƒgƒ[ƒ‹ƒŠƒXƒg
+        /// çŸ³ã®ãƒ”ã‚¯ãƒãƒ£ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ«ãƒªã‚¹ãƒˆ
         /// </summary>
         private List<PictureBox> DiscPictures {  get; set; }
 
         /// <summary>
-        /// ƒQ[ƒ€ó‘Ô
+        /// ã‚²ãƒ¼ãƒ çŠ¶æ…‹
         /// </summary>
         private GameContext Context { get; set; }
 
         /// <summary>
-        /// ƒRƒ“ƒXƒgƒ‰ƒNƒ^
+        /// ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
         /// </summary>
         public BoardForm()
         {
@@ -62,10 +102,10 @@ namespace Reluca.Ui.WinForms
         }
 
         /// <summary>
-        /// ƒQ[ƒ€‚ğŠJn‚µ‚Ü‚·B
+        /// ã‚²ãƒ¼ãƒ ã‚’é–‹å§‹ã—ã¾ã™ã€‚
         /// </summary>
-        /// <param name="sender">‹N“®Œ³ƒtƒH[ƒ€</param>
-        /// <param name="players">ƒvƒŒƒCƒ„ƒŠƒXƒg</param>
+        /// <param name="sender">èµ·å‹•å…ƒãƒ•ã‚©ãƒ¼ãƒ </param>
+        /// <param name="players">ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒªã‚¹ãƒˆ</param>
         public void Start(StartForm sender, Dictionary<Disc.Color, Player.Type> players)
         {
             StartForm = sender;
@@ -74,26 +114,48 @@ namespace Reluca.Ui.WinForms
 
             if (Players.Values.All(p => p == Player.Type.Cpu))
             {
-                BlackPlayerNameLabel.Text = "•FCPU1";
-                WhitePlayerNameLabel.Text = "”’FCPU2";
+                BlackPlayerNameLabel.Text = "é»’ï¼šCPU1";
+                WhitePlayerNameLabel.Text = "ç™½ï¼šCPU2";
             } else if (Players.Values.All(p => p == Player.Type.Human))
             {
-                BlackPlayerNameLabel.Text = "•FƒvƒŒƒCƒ„1";
-                WhitePlayerNameLabel.Text = "”’FƒvƒŒƒCƒ„2";
+                BlackPlayerNameLabel.Text = "é»’ï¼šãƒ—ãƒ¬ã‚¤ãƒ¤1";
+                WhitePlayerNameLabel.Text = "ç™½ï¼šãƒ—ãƒ¬ã‚¤ãƒ¤2";
             } else
             {
-                BlackPlayerNameLabel.Text = "•FCPU";
-                WhitePlayerNameLabel.Text = "”’F‚ ‚È‚½";
+                BlackPlayerNameLabel.Text = "é»’ï¼šCPU";
+                WhitePlayerNameLabel.Text = "ç™½ï¼šã‚ãªãŸ";
             }
 
             DiscPictures = new List<PictureBox>();
+
+            // BoardPictureBoxã®å®Ÿéš›ã®ä½ç½®ã¨ã‚µã‚¤ã‚ºã‚’å–å¾—ï¼ˆDPIã‚¹ã‚±ãƒ¼ãƒªãƒ³ã‚°å¯¾å¿œï¼‰
+            var boardBounds = BoardPictureBox.Bounds;
+            var scaleX = boardBounds.Width / OriginalBoardWidth;
+            var scaleY = boardBounds.Height / OriginalBoardHeight;
+
+            // å…ƒã®ãƒ‡ã‚¶ã‚¤ãƒ³æ¯”ç‡ã«åŸºã¥ã„ã¦ã‚¹ã‚±ãƒ¼ãƒªãƒ³ã‚°ï¼ˆX/Yæ–¹å‘ã‚’å€‹åˆ¥ã«è¨ˆç®—ï¼‰
+            var offsetX = OriginalOffsetX * scaleX;
+            var offsetY = OriginalOffsetY * scaleY;
+            var cellPitchX = OriginalCellPitchX * scaleX;
+            var cellPitchY = OriginalCellPitchY * scaleY;
+            // ä¸¸ã‚èª¤å·®ã«ã‚ˆã‚‹éš™é–“ã‚’é˜²ããŸã‚ã€çŸ³ã®ã‚µã‚¤ã‚ºã¯åˆ‡ã‚Šä¸Šã’
+            var discWidth = (int)Math.Ceiling(OriginalDiscWidth * scaleX);
+            var discHeight = (int)Math.Ceiling(OriginalDiscHeight * scaleY);
+
             for (var i = 0; i < Board.AllLength; i++)
             {
+                var col = BoardAccessor.GetColumnIndex(i);
+                var row = BoardAccessor.GetRowIndex(i);
+
+                // BoardPictureBoxã®ä½ç½®ã¨ã‚¹ã‚±ãƒ¼ãƒªãƒ³ã‚°ã•ã‚ŒãŸæ¯”ç‡ã«åŸºã¥ã„ã¦è¨ˆç®—
+                var x = boardBounds.Left + (int)Math.Round(offsetX + col * cellPitchX);
+                var y = boardBounds.Top + (int)Math.Round(offsetY + row * cellPitchY);
+
                 var picture = new PictureBox();
                 picture.Image = Properties.Resources.Black;
-                picture.Location = new Point(43 + (121 * BoardAccessor.GetColumnIndex(i)), 51 + (121 * BoardAccessor.GetRowIndex(i)));
+                picture.Location = new Point(x, y);
                 picture.Name = $"{DiscPictureNamePrefix}{i}";
-                picture.Size = new Size(114, 114);
+                picture.Size = new Size(discWidth, discHeight);
                 picture.SizeMode = PictureBoxSizeMode.StretchImage;
                 picture.TabIndex = 5 + i;
                 picture.TabStop = false;
@@ -111,7 +173,7 @@ namespace Reluca.Ui.WinForms
         }
 
         /// <summary>
-        /// ƒtƒH[ƒ€‰æ–Ê‚ğƒAƒbƒvƒf[ƒg‚µ‚Ü‚·B
+        /// ãƒ•ã‚©ãƒ¼ãƒ ç”»é¢ã‚’ã‚¢ãƒƒãƒ—ãƒ‡ãƒ¼ãƒˆã—ã¾ã™ã€‚
         /// </summary>
         private void Next()
         {
@@ -123,7 +185,7 @@ namespace Reluca.Ui.WinForms
                 RefreshForm();
                 if (Context.Mobility <= 0)
                 {
-                    // ƒQ[ƒ€I—¹
+                    // ã‚²ãƒ¼ãƒ çµ‚äº†
                     End();
                     return;
                 }
@@ -138,7 +200,7 @@ namespace Reluca.Ui.WinForms
         }
 
         /// <summary>
-        /// ƒtƒH[ƒ€‰æ–Ê‚ğƒŠƒtƒŒƒbƒVƒ…‚µ‚Ü‚·B
+        /// ãƒ•ã‚©ãƒ¼ãƒ ç”»é¢ã‚’ãƒªãƒ•ãƒ¬ãƒƒã‚·ãƒ¥ã—ã¾ã™ã€‚
         /// </summary>
         private void RefreshForm()
         {
@@ -152,7 +214,7 @@ namespace Reluca.Ui.WinForms
                 picture.Image = StateImages[state];
             }
 
-            // ƒvƒŒƒCƒ„–¼‚ÌF
+            // ãƒ—ãƒ¬ã‚¤ãƒ¤åã®è‰²
             if (Context.Turn == Disc.Color.Black)
             {
                 BlackPlayerNameLabel.BackColor = SystemColors.Highlight;
@@ -170,7 +232,7 @@ namespace Reluca.Ui.WinForms
         }
 
         /// <summary>
-        /// ƒQ[ƒ€‚ğI—¹‚µ‚Ü‚·B
+        /// ã‚²ãƒ¼ãƒ ã‚’çµ‚äº†ã—ã¾ã™ã€‚
         /// </summary>
         private void End()
         {
@@ -178,23 +240,23 @@ namespace Reluca.Ui.WinForms
             var white = BoardAccessor.GetDiscCount(Context.Board, Disc.Color.White);
             if (black == white)
             {
-                StartForm.ShowResult("ˆø‚«•ª‚¯‚Å‚·");
+                StartForm.ShowResult("å¼•ãåˆ†ã‘ã§ã™");
             }
             else
             {
                 if (black > white)
                 {
-                    StartForm.ShowResult($"{BlackPlayerNameLabel.Text}‚ÌŸ‚¿‚Å‚·");
+                    StartForm.ShowResult($"{BlackPlayerNameLabel.Text}ã®å‹ã¡ã§ã™");
                 }
                 else
                 {
-                    StartForm.ShowResult($"{WhitePlayerNameLabel.Text}‚ÌŸ‚¿‚Å‚·");
+                    StartForm.ShowResult($"{WhitePlayerNameLabel.Text}ã®å‹ã¡ã§ã™");
                 }
             }
         }
 
         /// <summary>
-        /// ”Õ‚Ìƒ}ƒX–Ú‚ğƒNƒŠƒbƒN‚µ‚½Û‚ÉÀs‚µ‚Ü‚·B
+        /// ç›¤ã®ãƒã‚¹ç›®ã‚’ã‚¯ãƒªãƒƒã‚¯ã—ãŸéš›ã«å®Ÿè¡Œã—ã¾ã™ã€‚
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
@@ -204,17 +266,17 @@ namespace Reluca.Ui.WinForms
             var index = int.Parse(picture.Name.Replace(DiscPictureNamePrefix, string.Empty));
             var state = BoardAccessor.GetState(Context, index);
 
-            // ”z’u•s‰Â”\‚È‚ç‰½‚à‚µ‚È‚¢
+            // é…ç½®ä¸å¯èƒ½ãªã‚‰ä½•ã‚‚ã—ãªã„
             if (state != Board.Status.Mobility)
             {
                 return;
             }
 
-            // w’è‚µ‚½êŠ‚Éw‚·
+            // æŒ‡å®šã—ãŸå ´æ‰€ã«æŒ‡ã™
             Context.Move = index;
             DiProvider.Get().GetService<MoveAndReverseUpdater>().Update(Context);
 
-            // ƒ^[ƒ“‚ğ‰ñ‚·
+            // ã‚¿ãƒ¼ãƒ³ã‚’å›ã™
             Next();
         }
     }
