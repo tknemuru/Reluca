@@ -102,21 +102,31 @@ private long _nodesSearched;
 
 #### カウント方針
 
-ノード展開の定義は「局面に対して評価関数を呼び出すか、子ノードの探索を開始した時点」とする。インクリメント箇所は `Pvs()` メソッド先頭の 1 箇所のみである。
+NodesSearched のカウント定義は「`Pvs()` メソッドの呼び出し回数」とする。`Pvs()` が呼び出されるたびに 1 ノードとしてカウントする。これには葉ノード（`remainingDepth == 0` で評価関数を呼ぶノード）、TT ヒットで早期リターンするノード、パスノードの再帰呼び出しがすべて含まれる。
+
+インクリメント箇所は `Pvs()` メソッド先頭の 1 箇所のみである。
 
 | 箇所 | タイミング | 理由 |
 |------|-----------|------|
-| `Pvs()` メソッド先頭 | メソッド呼び出し時 | 再帰呼び出しされた全ノードをカウントする |
+| `Pvs()` メソッド先頭 | メソッド呼び出し時 | 再帰呼び出しされた全ノード（葉ノード・TT ヒットノード・パスノードを含む）をカウントする |
 
 `RootSearch()` のループ内で `Pvs()` を呼ぶ際、ルートの各子ノードは `Pvs()` メソッド先頭のインクリメントによりカウントされる。`RootSearch()` 側に追加のカウント処理は不要である。
 
-**[仮定]** ルート局面自体は 1 ノードとしてカウントしない。ルート局面は合法手の列挙のみを行い、評価関数の呼び出しや探索の打ち切り判定が発生しないためである。
+**[仮定]** ルート局面自体は 1 ノードとしてカウントしない。ルート局面は合法手の列挙のみを行い、`Pvs()` を経由しないためである。`RootSearch()` 内で合法手が 0 の場合に `Evaluate(context)` を直接呼び出すケースも存在するが、これはゲーム終了に近い例外的な状況であり、`Pvs()` を経由しないためカウント対象外とする。本 RFC での NodesSearched は Reluca 内部の探索効率評価を目的としており、外部エンジン（Stockfish 等）との直接的な NodesSearched 比較は想定しない。
+
+#### 葉ノードの扱い
+
+葉ノード（`remainingDepth == 0` または終局で `Evaluate` を呼ぶノード）はカウント対象に含む。既存の `Pvs()` メソッドでは終了条件チェックがメソッド先頭にあるため、`_nodesSearched++` は終了条件チェックの前に挿入する。これにより既存の制御フロー（終了条件 → TT Probe → 合法手展開）を変更せずにカウントを追加できる。
 
 #### TT Probe ヒット時の扱い
 
 TT Probe ヒット時は `Pvs()` メソッドの先頭でカウント済みであるため、追加のカウント処理は不要である。TT Probe によるカットオフは「探索したが早期に打ち切れた」ノードとして 1 ノードにカウントされる。
 
 これにより TT ON 時は「TT ヒットで打ち切られたノードは 1 としてカウントされるが、その先の子孫ノードは展開されないため NodesSearched が減少する」という挙動となり、TT の効果を定量的に評価できる。
+
+#### パスノードの扱い
+
+合法手が 0 の場合のパス処理（`BoardAccessor.Pass` → `Pvs()` 再帰呼び出し）では、再帰呼び出し先の `Pvs()` メソッド先頭でカウントされる。パスノードはカウント対象に含む。パスは新しい着手を伴わないが、`Pvs()` の呼び出しとして探索木の一部を構成し、終了条件の評価や子ノードの展開が発生するためである。
 
 #### Aspiration Window 再探索時のカウント方針
 
@@ -159,20 +169,25 @@ public SearchResult Search(GameContext context, SearchOptions options, IEvaluabl
 
 `_nodesSearched` のリセットは `for` ループの先頭で 1 回のみ行う。`AspirationRootSearch` 内で `RootSearch` が複数回呼び出されても、`_nodesSearched` はリセットされず累積される。これにより、当該深さで実際に展開された全ノード数が `_nodesSearched` に反映される。
 
-**`Pvs()` メソッド先頭:**
+**`Pvs()` メソッド先頭（既存の制御フローに合わせた挿入位置）:**
+
+既存の `Pvs()` メソッドの制御フローは「終了条件チェック → TT Probe → 合法手展開」の順である。`_nodesSearched++` はこの制御フローを変更せず、終了条件チェックの前に挿入する。
 
 ```csharp
 private long Pvs(GameContext context, int remainingDepth, long alpha, long beta, bool isPassed)
 {
-    _nodesSearched++;  // ノードカウント
+    _nodesSearched++;  // ノードカウント（葉ノード・TT ヒットノード・パスノードを含む全ノード）
 
-    // 終了条件チェック
-    if (remainingDepth == 0 || IsGameEndTurnCount(context))
+    // 終了条件: 残り深さ 0 または終局（既存の制御フローを維持）
+    if (remainingDepth == 0 || BoardAccessor.IsGameEndTurnCount(context))
     {
         return Evaluate(context);
     }
 
     // TT Probe（ヒット時は早期リターン、カウント済み）
+    // ... 既存処理 ...
+
+    // 合法手展開 or パス処理
     // ... 既存処理 ...
 }
 ```
@@ -192,7 +207,7 @@ private long Pvs(GameContext context, int remainingDepth, long alpha, long beta,
 Console.WriteLine($"depth={depth} nodes={_nodesSearched} total={totalNodesSearched} value={result.Value}");
 ```
 
-ログ出力には既存の `Console.WriteLine` を使用する。構造化ログ基盤（Logger クラス）の導入は別 RFC のスコープとし、本 RFC では最小限の標準出力で計測結果を確認できることを目的とする。
+ログ出力には既存の `Console.WriteLine` を使用する。構造化ログ基盤（Logger クラス）の導入は別 RFC のスコープとし、本 RFC では最小限の標準出力で計測結果を確認できることを目的とする。後続の Logger RFC では、ログレベル制御、テスト時の出力抑制、ビルド構成（Debug/Release）に応じた出力制御を設計に含めることを推奨する。
 
 ### 5.4 ISearchEngine インターフェースへの影響
 
@@ -257,7 +272,12 @@ Console.WriteLine($"depth={depth} nodes={_nodesSearched} total={totalNodesSearch
 - ログ出力は反復深化の各深さ完了時（最大 MaxDepth 回）のみであり、ノード展開ごとではないためパフォーマンスに影響しない。
 - `SearchResult` への `NodesSearched` 追加は `long` 型フィールド 1 つであり、メモリへの影響は無視できる。
 
-### 7.2 マイグレーションと後方互換性
+### 7.2 スレッドセーフティ
+
+- 本 RFC の `_nodesSearched` インクリメントはシングルスレッド実行を前提としており、排他制御は行わない。現在の `PvsSearchEngine` はシングルスレッドで動作するため問題にならない。
+- 将来マルチスレッド探索（Lazy SMP 等）を導入する場合は、`_nodesSearched` のインクリメントを `Interlocked.Increment` に置き換える必要がある。
+
+### 7.3 マイグレーションと後方互換性
 
 - `SearchResult` のコンストラクタにデフォルト値（`nodesSearched = 0`）を設定するため、既存の呼び出し元（`LegacySearchEngine` 等）は変更不要である。
 - `ISearchEngine` インターフェースの変更はない。
@@ -275,6 +295,10 @@ Console.WriteLine($"depth={depth} nodes={_nodesSearched} total={totalNodesSearch
 | TT 効果の検証 | 同一局面で TT ON 時の NodesSearched が TT OFF 時より少ないこと |
 | 探索結果の非干渉 | NodesSearched 導入前後で `BestMove` と `Value` が一致すること |
 | 深さごとの累積 | 反復深化の全深さの NodesSearched 合計が `SearchResult.NodesSearched` と一致すること |
+
+### Console.WriteLine のテスト時の扱い
+
+テスト時の `Console.WriteLine` による標準出力はテスト結果に影響しないため、特別な対応は行わない。「深さごとの累積」の検証は `SearchResult.NodesSearched`（合計値）を検証対象とし、標準出力のパースは行わない。後続の Logger RFC でログ出力の制御（ログレベルやテスト時の抑制）を検討する。
 
 ### 検証方法
 
