@@ -136,6 +136,7 @@ Reluca/
 | 言語 | C# 12 |
 | フレームワーク | .NET 8.0 |
 | DI コンテナ | Microsoft.Extensions.DependencyInjection |
+| ログ基盤 | Serilog + Microsoft.Extensions.Logging |
 | シリアライズ | Newtonsoft.Json |
 | テスト | xUnit |
 | UI | Windows Forms |
