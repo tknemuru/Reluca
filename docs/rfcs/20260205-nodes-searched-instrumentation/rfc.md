@@ -13,8 +13,9 @@
 - PVS 探索エンジンに探索ノード数（NodesSearched）の計測機能を導入する。
 - `SearchResult` に `NodesSearched` プロパティを追加し、探索完了時にノード数を返却する。
 - `PvsSearchEngine` の各ノード展開時にカウントを加算し、TT Probe ヒット時のカウント処理も行う。
-- 反復深化の各深さごとの NodesSearched をログ出力可能にする。
-- 本 RFC は後続の RFC 2〜4（Multi-ProbCut、Aspiration Window チューニング、時間制御）の前提となる計測基盤である。
+- 反復深化の各深さごとの NodesSearched を構造化ログとして出力する。
+- 既存の `FileHelper.Log()` ベースのログ機構を刷新し、構造化ログ（JSON Lines 形式）・ログレベル・日付ベースローテーション・自動クリーンアップを備えた `Logger` クラスを導入する。
+- 本 RFC は後続の RFC 2〜4（Multi-ProbCut、Aspiration Window チューニング、時間制御）の前提となる計測基盤であり、可観測性の基盤でもある。
 
 ## 2. 背景・動機 (Motivation)
 
@@ -31,13 +32,15 @@
 - TT ON/OFF で NodesSearched の差分が確認できること（TT ON 時に減少）
 - 反復深化の各深さごとの NodesSearched を確認できること
 - 既存の探索結果（BestMove、Value）に一切影響を与えないこと
+- 構造化ログ（JSON Lines 形式）によるファイル出力で、探索統計を永続化すること
+- ログの日付ベースローテーションと古いログの自動クリーンアップにより、運用負荷を低減すること
 
 ### やらないこと (Non-Goals)
 
 - NPS（Nodes Per Second）の計測。時間計測は RFC 4（time-limit-search）のスコープとする
 - LegacySearchEngine（CachedNegaMax）への NodesSearched 導入。PvsSearchEngine のみを対象とする
-- 探索統計の永続化やファイル出力。ログ出力の仕組みのみ提供する
 - UI への NodesSearched 表示
+- 既存の `Console.WriteLine` 呼び出しの一括移行。既存コードへの Logger 導入は段階的に行う
 
 ## 4. 前提条件・依存関係 (Prerequisites & Dependencies)
 
@@ -136,8 +139,14 @@ public SearchResult Search(GameContext context, SearchOptions options, IEvaluabl
 
         totalNodesSearched += _nodesSearched;
 
-        // 深さごとのノード数をログ出力
-        Logger.Debug($"depth={depth}, nodes={_nodesSearched}, total={totalNodesSearched}, value={maxValue}");
+        // 深さごとのノード数を構造化ログとして出力
+        Logger.Info("Iterative deepening completed", "PvsSearchEngine", new Dictionary<string, object>
+        {
+            { "depth", depth },
+            { "nodes", _nodesSearched },
+            { "total", totalNodesSearched },
+            { "value", maxValue }
+        });
     }
 
     return new SearchResult(bestMoveResult, maxValueResult, totalNodesSearched);
@@ -164,31 +173,174 @@ private long Pvs(GameContext context, int remainingDepth, long alpha, long beta,
 }
 ```
 
-### 5.3 ログ出力
+### 5.3 Logger クラスの導入
 
-反復深化の各深さ完了時に、以下の情報をデバッグログとして出力する。
+既存の `FileHelper.Log()` はプレーンテキスト形式でログレベルの区分もなく、後続 RFC で求められる可観測性の要件を満たさない。abel プロジェクト（`~/projects/abel/src/helpers/logger.js`）のログ機構を参考に、C# 版の構造化ロガーを新規導入する。
 
-| 項目 | 説明 |
+#### 5.3.1 既存ログ機構の課題
+
+| 課題 | 説明 |
 |------|------|
+| ログレベルなし | DEBUG / INFO / WARN / ERROR の区分がない |
+| 構造化されていない | プレーンテキスト形式で自動解析が困難 |
+| ローテートなし | ファイルが際限なく増加する |
+| タイムスタンプなし | ログエントリにタイムスタンプが付与されない |
+
+#### 5.3.2 Logger クラスの設計
+
+`Reluca/Helpers/Logger.cs` に新規クラスを追加する。
+
+```csharp
+/// <summary>
+/// 構造化ログを提供するロガー
+/// </summary>
+public static class Logger
+{
+    /// <summary>
+    /// ログレベル
+    /// </summary>
+    public enum Level
+    {
+        Debug = 0,
+        Info = 1,
+        Warn = 2,
+        Error = 3
+    }
+
+    /// <summary>
+    /// ログ出力ディレクトリ
+    /// </summary>
+    private static string _logDir = "./logs";
+
+    /// <summary>
+    /// 現在のログレベル
+    /// </summary>
+    private static Level _level = Level.Info;
+
+    /// <summary>
+    /// ログ保持日数
+    /// </summary>
+    private static int _maxDays = 30;
+
+    /// <summary>
+    /// 標準出力への出力有無
+    /// </summary>
+    private static bool _stdout = true;
+
+    /// <summary>
+    /// 前回クリーンアップを実行した日付
+    /// </summary>
+    private static string _lastCleanupDate = "";
+
+    /// <summary>
+    /// ロガーを初期化する
+    /// </summary>
+    /// <param name="logDir">ログ出力ディレクトリ</param>
+    /// <param name="level">ログレベル</param>
+    /// <param name="maxDays">ログ保持日数</param>
+    /// <param name="stdout">標準出力への出力有無</param>
+    public static void Init(string logDir = "./logs", Level level = Level.Info, int maxDays = 30, bool stdout = true)
+    {
+        _logDir = logDir;
+        _level = level;
+        _maxDays = maxDays;
+        _stdout = stdout;
+    }
+
+    /// <summary>
+    /// DEBUG レベルのログを出力する
+    /// </summary>
+    public static void Debug(string message, string component = "", Dictionary<string, object>? fields = null) => Log(Level.Debug, message, component, fields);
+
+    /// <summary>
+    /// INFO レベルのログを出力する
+    /// </summary>
+    public static void Info(string message, string component = "", Dictionary<string, object>? fields = null) => Log(Level.Info, message, component, fields);
+
+    /// <summary>
+    /// WARN レベルのログを出力する
+    /// </summary>
+    public static void Warn(string message, string component = "", Dictionary<string, object>? fields = null) => Log(Level.Warn, message, component, fields);
+
+    /// <summary>
+    /// ERROR レベルのログを出力する
+    /// </summary>
+    public static void Error(string message, string component = "", Dictionary<string, object>? fields = null) => Log(Level.Error, message, component, fields);
+}
+```
+
+#### 5.3.3 ログ出力形式
+
+abel プロジェクトと同様に、出力先に応じて形式を分ける。
+
+**ファイル出力（JSON Lines 形式）:**
+
+```json
+{"ts":"2026-02-05T12:00:00.000Z","level":"INFO","component":"PvsSearchEngine","msg":"Iterative deepening completed","depth":6,"nodes":12345,"total":54321,"value":150}
+```
+
+**標準出力（テキスト形式）:**
+
+```
+[2026-02-05T12:00:00.000Z] [INFO] [PvsSearchEngine] Iterative deepening completed depth=6 nodes=12345 total=54321 value=150
+```
+
+**[仮定]** JSON シリアライズには既に依存関係にある `Newtonsoft.Json` を使用する。追加の NuGet パッケージは導入しない。
+
+#### 5.3.4 日付ベースローテーション
+
+ログファイル名に日付を含め、日ごとに自動的に新ファイルを生成する。
+
+- **ファイル名パターン**: `reluca-YYYY-MM-DD.log`
+- **出力先**: `./logs/` ディレクトリ
+- **日付切り替え検知**: ログ書き込み時に現在日付とファイル名の日付を比較する
+
+#### 5.3.5 古いログの自動クリーンアップ
+
+`_maxDays`（デフォルト 30 日）以上前のログファイルを自動削除する。
+
+- **実行タイミング**: 日付が変わった最初のログ書き込み時
+- **削除対象**: `reluca-YYYY-MM-DD.log` パターンに一致するファイルのうち、`_maxDays` 日以上前のもの
+- **エラー処理**: 削除失敗時はコンソールに警告を出力し、アプリケーションの動作は継続する
+
+#### 5.3.6 FileHelper.Log() との関係
+
+既存の `FileHelper.Log()` は残置する。新規コードでは `Logger` クラスを使用し、既存コードの `FileHelper.Log()` は段階的に移行する方針とする。
+
+### 5.4 探索ログの出力
+
+反復深化の各深さ完了時に、以下の情報を構造化ログとして出力する。
+
+| フィールド | 説明 |
+|-----------|------|
 | `depth` | 探索深さ |
 | `nodes` | 当該深さでの探索ノード数 |
 | `total` | 累計探索ノード数 |
 | `value` | 当該深さでの評価値 |
 
-ログ出力には既存のロギング機構を使用する。既存のロギング機構がない場合は `System.Diagnostics.Debug.WriteLine()` を使用する。
+```csharp
+Logger.Info("Iterative deepening completed", "PvsSearchEngine", new Dictionary<string, object>
+{
+    { "depth", depth },
+    { "nodes", _nodesSearched },
+    { "total", totalNodesSearched },
+    { "value", maxValue }
+});
+```
 
-**[仮定]** ログ出力は `Debug` レベルとし、リリースビルドでは出力されない前提とする。パフォーマンスへの影響を最小限に抑えるためである。
+**[仮定]** 探索ログは `Info` レベルとする。後続 RFC でのパラメータ調整時に常に確認したい情報であり、DEBUG レベルでは運用時に見落とすリスクがあるためである。
 
-### 5.4 ISearchEngine インターフェースへの影響
+### 5.5 ISearchEngine インターフェースへの影響
 
 `ISearchEngine` インターフェースの `Search()` メソッドシグネチャは変更しない。戻り値の `SearchResult` に `NodesSearched` が追加されるのみであり、`SearchResult` のコンストラクタにデフォルト値を設定することで後方互換性を維持する。
 
-### 5.5 変更対象ファイル一覧
+### 5.6 変更対象ファイル一覧
 
 | ファイル | 変更内容 |
 |---------|---------|
+| `Reluca/Helpers/Logger.cs` | 新規作成。構造化ログ、ログレベル、日付ベースローテーション、自動クリーンアップを提供する Logger クラス |
 | `Reluca/Search/SearchResult.cs` | `NodesSearched` プロパティ追加、コンストラクタ拡張 |
-| `Reluca/Search/PvsSearchEngine.cs` | `_nodesSearched` フィールド追加、カウントロジック、ログ出力 |
+| `Reluca/Search/PvsSearchEngine.cs` | `_nodesSearched` フィールド追加、カウントロジック、Logger による構造化ログ出力 |
 
 ## 6. 代替案の検討 (Alternatives Considered)
 
@@ -208,6 +360,24 @@ private long Pvs(GameContext context, int remainingDepth, long alpha, long beta,
 
 現時点で必要な計測指標は NodesSearched のみである。案 B は将来の拡張性で優れるが、YAGNI の原則に基づき、必要最小限の変更で目的を達成できる案 A を採用する。将来 TT ヒット率やベータカット率の計測が必要になった時点で、案 B へのリファクタリングを検討すればよい。
 
+### ログ機構の代替案
+
+#### 案C: Microsoft.Extensions.Logging の採用
+
+- **概要**: .NET 標準のログ抽象化レイヤーである `Microsoft.Extensions.Logging` を導入し、ファイル出力には `Serilog` 等のシンクを組み合わせる。
+- **長所**: .NET エコシステムの標準パターン。DI との統合が容易。将来的にログプロバイダの差し替えが可能。
+- **短所**: NuGet パッケージの追加依存が発生する。Reluca はライブラリであり、ホストアプリケーションのログ設定に依存する形になる。現在の DI 構成（`DiProvider` による静的サービスプロバイダ）との統合に追加作業が必要。
+
+#### 案D: 独自 Logger クラスの導入（採用案）
+
+- **概要**: abel プロジェクトのログ機構を参考に、C# で独自の静的 Logger クラスを実装する。JSON Lines 形式の構造化ログ、日付ベースローテーション、自動クリーンアップを自前で実装する。
+- **長所**: 外部依存なし。abel で実績のある設計パターンを流用できる。既存の `FileHelper` と同じく静的クラスとして実装するため、既存コードとの一貫性が高い。
+- **短所**: ローテーションやクリーンアップのロジックを自前で実装・保守する必要がある。
+
+#### 選定理由（ログ機構）
+
+Reluca はオセロ思考エンジンのライブラリであり、ログ出力の要件は限定的である。Microsoft.Extensions.Logging の導入は依存関係の増加に見合うメリットが薄い。abel プロジェクトで実績のある独自実装パターンが Reluca の規模に適しており、外部依存を増やさずに構造化ログ・ローテーション・クリーンアップを実現できる案 D を採用する。
+
 ## 7. 横断的関心事 (Cross-Cutting Concerns)
 
 ### 7.1 スケーラビリティとパフォーマンス
@@ -216,15 +386,25 @@ private long Pvs(GameContext context, int remainingDepth, long alpha, long beta,
 - ログ出力は反復深化の各深さ完了時（最大 MaxDepth 回）のみであり、ノード展開ごとではないためパフォーマンスに影響しない。
 - `SearchResult` への `NodesSearched` 追加は `long` 型フィールド 1 つであり、メモリへの影響は無視できる。
 
-### 7.2 マイグレーションと後方互換性
+### 7.2 ログ機構の運用
+
+- ログファイルは `./logs/reluca-YYYY-MM-DD.log` に日付単位で出力される。
+- 30 日以上前のログファイルは自動削除される。デフォルト設定では手動でのログ管理は不要である。
+- `Logger.Init()` により、ログディレクトリ・ログレベル・保持日数・標準出力の有無を設定可能とする。
+- ファイル書き込みに失敗した場合は標準出力にフォールバックし、アプリケーションの動作は継続する。
+
+### 7.3 マイグレーションと後方互換性
 
 - `SearchResult` のコンストラクタにデフォルト値（`nodesSearched = 0`）を設定するため、既存の呼び出し元（`LegacySearchEngine` 等）は変更不要である。
 - `ISearchEngine` インターフェースの変更はない。
+- 既存の `FileHelper.Log()` は残置するため、既存のログ呼び出しに影響はない。
 - 破壊的変更はない。
 
 ## 8. テスト戦略 (Test Strategy)
 
 ### ユニットテスト
+
+#### NodesSearched
 
 | テスト観点 | 内容 |
 |-----------|------|
@@ -233,30 +413,47 @@ private long Pvs(GameContext context, int remainingDepth, long alpha, long beta,
 | 探索結果の非干渉 | NodesSearched 導入前後で `BestMove` と `Value` が一致すること |
 | 深さごとの累積 | 反復深化の全深さの NodesSearched 合計が `SearchResult.NodesSearched` と一致すること |
 
+#### Logger
+
+| テスト観点 | 内容 |
+|-----------|------|
+| ログファイル生成 | `Logger.Info()` 呼び出し後にログファイルが生成されること |
+| JSON Lines 形式 | ログファイルの各行が有効な JSON であること |
+| 必須フィールド | `ts`, `level`, `msg` フィールドが含まれること |
+| ログレベルフィルタ | 設定レベル未満のログが出力されないこと |
+| 日付ローテーション | 日付の異なるログが別ファイルに出力されること |
+| 自動クリーンアップ | 保持日数を超えたログファイルが削除されること |
+
 ### 検証方法
 
 - 既存テストを全て実行し、探索結果に変更がないことを確認する。
 - テスト用の固定局面で TT ON/OFF それぞれの NodesSearched を取得し、TT ON 時に減少していることを検証する。
+- Logger のテストでは一時ディレクトリを使用し、テスト後にクリーンアップする。
 
 ## 9. 実装・リリース計画 (Implementation Plan)
 
-### フェーズ 1: SearchResult 拡張
+### フェーズ 1: Logger クラスの導入
+
+- `Reluca/Helpers/Logger.cs` を新規作成する
+- 構造化ログ（JSON Lines 形式）の出力を実装する
+- ログレベル（DEBUG / INFO / WARN / ERROR）のフィルタリングを実装する
+- 日付ベースローテーション（`reluca-YYYY-MM-DD.log`）を実装する
+- 古いログの自動クリーンアップ（デフォルト 30 日）を実装する
+- Logger のユニットテストを作成し通過することを確認する
+
+### フェーズ 2: SearchResult 拡張
 
 - `SearchResult` に `NodesSearched` プロパティを追加する
 - コンストラクタにデフォルト値付きパラメータを追加する
 - 既存テストが通過することを確認する
 
-### フェーズ 2: カウンタ実装
+### フェーズ 3: カウンタ実装とログ出力
 
 - `PvsSearchEngine` に `_nodesSearched` フィールドを追加する
 - `Pvs()` メソッド先頭でのカウント処理を追加する
 - `Search()` メソッドで深さごとのリセットと累計を実装する
 - `SearchResult` 生成時に `totalNodesSearched` を渡す
-
-### フェーズ 3: ログ出力
-
-- 反復深化の各深さ完了時にデバッグログを出力する
-- ログフォーマットを統一する
+- 反復深化の各深さ完了時に Logger を使用して構造化ログを出力する
 
 ### フェーズ 4: テストと検証
 
@@ -266,6 +463,6 @@ private long Pvs(GameContext context, int remainingDepth, long alpha, long beta,
 
 ### システム概要ドキュメントへの影響
 
-- `docs/architecture.md`: 影響なし。コンポーネント構成やレイヤー構造に変更はない。
+- `docs/architecture.md`: `Logger` クラスの追加を Helpers セクションに反映する。
 - `docs/domain-model.md`: 影響なし。ドメイン概念やデータモデルに変更はない。
 - `docs/api-overview.md`: 存在しない（対象外）。
