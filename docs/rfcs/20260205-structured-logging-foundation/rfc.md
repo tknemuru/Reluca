@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 | :--- | :--- |
 | **作成者 (Author)** | Claude Code |
-| **ステータス** | Draft (起草中) |
+| **ステータス** | Accepted (承認済) |
 | **作成日** | 2026-02-05 |
 | **タグ** | Helpers, Logging, 中優先度 |
 | **関連リンク** | [WZebra RFC ロードマップ](../../reports/wzebra-rfc-roadmap.md), [RFC: nodes-searched-instrumentation](../20260205-nodes-searched-instrumentation/rfc.md) |
