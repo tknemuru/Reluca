@@ -22,14 +22,21 @@ namespace Reluca.Search
         public long Value { get; }
 
         /// <summary>
+        /// 探索ノード数
+        /// </summary>
+        public long NodesSearched { get; }
+
+        /// <summary>
         /// コンストラクタ
         /// </summary>
         /// <param name="bestMove">最善手</param>
         /// <param name="value">評価値</param>
-        public SearchResult(int bestMove, long value)
+        /// <param name="nodesSearched">探索ノード数</param>
+        public SearchResult(int bestMove, long value, long nodesSearched = 0)
         {
             BestMove = bestMove;
             Value = value;
+            NodesSearched = nodesSearched;
         }
     }
 }
