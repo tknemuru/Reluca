@@ -82,6 +82,7 @@ namespace Reluca.Di
                 builder.ClearProviders();
                 builder.AddSerilog(serilogLogger, dispose: true);
             });
+
             services.AddSingleton<StringToBoardContextConverter, StringToBoardContextConverter>();
             services.AddSingleton<BoardContextToStringConverter, BoardContextToStringConverter>();
             services.AddSingleton<StringToMobilityBoardConverter, StringToMobilityBoardConverter>();
