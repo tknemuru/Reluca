@@ -105,6 +105,11 @@ namespace Reluca.Search
         private bool _suppressTTStore;
 
         /// <summary>
+        /// 探索ノード数カウンタ
+        /// </summary>
+        private long _nodesSearched;
+
+        /// <summary>
         /// コンストラクタ。DI から依存を注入します。
         /// </summary>
         /// <param name="mobilityAnalyzer">着手可能数分析機能</param>
@@ -148,10 +153,12 @@ namespace Reluca.Search
             // 反復深化: depth=1 から MaxDepth まで
             SearchResult result = new SearchResult(-1, 0);
             long prevValue = 0;
+            long totalNodesSearched = 0;
 
             for (int depth = 1; depth <= options.MaxDepth; depth++)
             {
                 _currentDepth = depth;
+                _nodesSearched = 0;
 
                 // Aspiration Window: depth >= 2 かつ UseAspirationWindow=true の場合
                 if (depth >= 2 && options.UseAspirationWindow)
@@ -164,10 +171,13 @@ namespace Reluca.Search
                     result = RootSearch(context, depth, DefaultAlpha, DefaultBeta);
                 }
 
+                totalNodesSearched += _nodesSearched;
+                Console.WriteLine($"depth={depth} nodes={_nodesSearched} total={totalNodesSearched} value={result.Value}");
+
                 prevValue = result.Value;
             }
 
-            return result;
+            return new SearchResult(result.BestMove, result.Value, totalNodesSearched);
         }
 
         /// <summary>
@@ -352,6 +362,8 @@ namespace Reluca.Search
         /// <returns>評価値</returns>
         private long Pvs(GameContext context, int remainingDepth, long alpha, long beta, bool isPassed)
         {
+            _nodesSearched++;
+
             // 終了条件: 残り深さ 0 または終局
             if (remainingDepth == 0 || BoardAccessor.IsGameEndTurnCount(context))
             {
