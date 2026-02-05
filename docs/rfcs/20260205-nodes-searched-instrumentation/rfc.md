@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 | :--- | :--- |
 | **作成者 (Author)** | AI (Claude) |
-| **ステータス** | Draft (起草中) |
+| **ステータス** | Accepted (承認済) |
 | **作成日** | 2026-02-05 |
 | **タグ** | Search, 最優先 |
 | **関連リンク** | [WZebra RFC ロードマップ](../../reports/wzebra-rfc-roadmap.md) |
