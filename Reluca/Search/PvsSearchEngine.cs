@@ -25,6 +25,7 @@
 /// - δ 拡大時はオーバーフロー防止のため MaxDelta で clamp
 /// - retry 中は TT Store を抑制し、最終確定時のみ Store を許可（TT Clear 不要）
 /// </summary>
+using Microsoft.Extensions.Logging;
 using Reluca.Accessors;
 using Reluca.Analyzers;
 using Reluca.Contexts;
@@ -58,6 +59,11 @@ namespace Reluca.Search
         /// Aspiration δ の最大値（オーバーフロー防止）
         /// </summary>
         private const long MaxDelta = DefaultBeta - DefaultAlpha;
+
+        /// <summary>
+        /// ロガー
+        /// </summary>
+        private readonly ILogger<PvsSearchEngine> _logger;
 
         /// <summary>
         /// 着手可能数分析機能
@@ -112,16 +118,19 @@ namespace Reluca.Search
         /// <summary>
         /// コンストラクタ。DI から依存を注入します。
         /// </summary>
+        /// <param name="logger">ロガー</param>
         /// <param name="mobilityAnalyzer">着手可能数分析機能</param>
         /// <param name="reverseUpdater">石の裏返し更新機能</param>
         /// <param name="transpositionTable">置換表</param>
         /// <param name="zobristHash">Zobrist ハッシュ計算機能</param>
         public PvsSearchEngine(
+            ILogger<PvsSearchEngine> logger,
             MobilityAnalyzer mobilityAnalyzer,
             MoveAndReverseUpdater reverseUpdater,
             ITranspositionTable transpositionTable,
             IZobristHash zobristHash)
         {
+            _logger = logger;
             _mobilityAnalyzer = mobilityAnalyzer;
             _reverseUpdater = reverseUpdater;
             _transpositionTable = transpositionTable;
@@ -172,7 +181,13 @@ namespace Reluca.Search
                 }
 
                 totalNodesSearched += _nodesSearched;
-                Console.WriteLine($"depth={depth} nodes={_nodesSearched} total={totalNodesSearched} value={result.Value}");
+                _logger.LogInformation("探索進捗 {@SearchProgress}", new
+                {
+                    Depth = depth,
+                    Nodes = _nodesSearched,
+                    TotalNodes = totalNodesSearched,
+                    Value = result.Value
+                });
 
                 prevValue = result.Value;
             }
