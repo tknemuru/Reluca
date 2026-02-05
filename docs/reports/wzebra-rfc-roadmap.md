@@ -1,7 +1,7 @@
 # WZebra アルゴリズム組み込み RFC ロードマップ
 
 - 作成日: 2026-02-05
-- ステータス: 策定中
+- ステータス: 承認済み
 - 前提文書: [wzebra-roadmap.md](./wzebra-roadmap.md)（Task 1〜3d.2 完了）、[wzebra-algorithm.md](./wzebra-algorithm.md)
 
 ## 1. 概要
