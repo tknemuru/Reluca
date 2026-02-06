@@ -149,6 +149,10 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 TT を使わないテストクラス（`PvsSearchEngineIterativeDeepeningUnitTest` の TT OFF テスト等）は並列実行の恩恵を受ける。
 
+#### 将来の TT 使用テストクラス追加時の運用ルール
+
+TT を使用する新規テストクラスを追加する際は、必ず `[DoNotParallelize]` 属性を付与すること。付与漏れを防ぐため、TT を使用するテストクラスの命名には `WithTT` を含める命名規約を採用する（例: `PvsSearchEngineWithTTUnitTest`）。コードレビュー時に TT 使用の有無と `[DoNotParallelize]` の付与状況を確認項目とする。
+
 ### 5.6 Search 系テストの探索深さ削減
 
 以下の方針で depth を削減する。
@@ -167,7 +171,9 @@ depth=10 のテスト `MPC_ON時のNodesSearchedがMPC_OFF時より少ない` �
 depth を変更すると探索結果が変わるため、既存のアサーション値（期待される最善手、ノード数の比較条件等）が成立しなくなる可能性がある。以下の方針で対応する。
 
 - **有効な手を返す系**: アサーションは「合法手の集合に含まれること」であるため、depth 変更の影響を受けない。更新不要である。
-- **ON/OFF 比較系（BestMove/Value 一致）**: depth=5 でも ON/OFF で同一結果が返ることを実測で確認する。不一致の場合は depth=5 での実測値に更新する。
+- **ON/OFF 比較系（BestMove/Value 一致）**: depth=5 でも ON/OFF で同一結果が返ることを実測で確認する。不一致の場合は以下の順序で対応する。
+  1. depth=5 で BestMove/Value が一致する別の局面（テスト盤面）を探索し、テストを再構成する。
+  2. 適切な局面が見つからない場合は、テストの検証観点を「BestMove の一致」から「両方が合法手であること」に変更する。値の一致テストが本質的に必要な場合は depth を据え置くことも許容する。
 - **ノード数比較系**: アサーションは「ON 時のノード数 < OFF 時のノード数」という相対比較であるため、depth 変更の影響を受けにくい。depth=5〜7 でも枝刈り効果の大小関係が維持されることを実測で確認する。
 
 ### 5.7 Cachers ディレクトリの扱い
@@ -258,7 +264,7 @@ UI 対局で1手あたりの応答時間が 10 秒を超える場合、以下の
 | 3 | 旧探索コード一式を削除（NegaMax / CachedNegaMax / NegaMaxTemplate / ISerchable / LegacySearchEngine） | 2 | ビルド成功・全テスト PASS |
 | 4 | Cacher 群を削除（MobilityCacher / EvalCacher / ReverseResultCacher / ICacheable）+ DiProvider から DI 登録削除 | 3 | ビルド成功 |
 | 5 | `NegaMaxTest.cs` / `LegacySearchEngineUnitTest.cs` を削除 | 3 | - |
-| 6 | `FindBestMover` 統合テストを `FindBestMoverUnitTest.cs` に移設 | 5 | - |
+| 6 | `FindBestMover` 統合テストを `FindBestMoverUnitTest.cs` に移設 | 5 | ビルド成功・全テスト PASS |
 | 7 | MSTest 並列実行有効化（`AssemblyInfo.cs` 追加）+ TT 使用テストクラスに `[DoNotParallelize]` 付与 | - | - |
 | 8 | Search 系テストの depth 削減（7→5, 10→7）+ アサーション値の実測更新 | - | - |
 | 9 | 全テスト実行・実行時間計測 | 1-8 | 全テスト PASS・実行時間 30 秒以下 |
@@ -268,8 +274,9 @@ UI 対局で1手あたりの応答時間が 10 秒を超える場合、以下の
 
 タスク間にゲート条件を設け、各段階で品質を確認する。ゲート条件を満たさない場合は、直前のコミットに `git revert` で切り戻す。
 
-- **タスク 2 完了後**: `dotnet build` が成功し、`dotnet test` で全テスト PASS を確認する。失敗した場合、DI 切替またはオプション有効化に問題がある。タスク 1-2 のコミットを revert する。
+- **タスク 2 完了後**: `dotnet build` が成功し、`dotnet test` で旧コードのテスト（`NegaMaxTest` 等）を含む全テストが PASS することを確認する。この時点では旧コード・旧テストがまだ存在するため、DI 切替後も旧テストが PASS することで後方互換性を検証する。失敗した場合、DI 切替またはオプション有効化に問題がある。タスク 1-2 のコミットを revert する。
 - **タスク 3 完了後**: `dotnet build` が成功し、`dotnet test` で全テスト PASS を確認する。ビルドエラーが発生した場合、削除対象外のコードから旧コードへの参照が残っている。参照を調査し、削除範囲を修正する。
+- **タスク 6 完了後**: `dotnet build` が成功し、`dotnet test` で移設した `FindBestMoverUnitTest` を含む全テストが PASS することを確認する。旧テスト削除とテスト移設が正しく行われたことを検証する。失敗した場合は移設テストの DI 構成やテストコードを修正する。
 - **タスク 9 完了後**: 全テスト PASS かつ実行時間 30 秒以下を確認する。実行時間が目標を超える場合、depth 値または並列設定を調整する。
 
 ### 検証方法
