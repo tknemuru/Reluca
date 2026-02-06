@@ -123,6 +123,8 @@ services.AddTransient<CachedNegaMax, CachedNegaMax>();
 
 - `FindBestMover経由で終盤探索が正常に動作する`
 
+移設先テストの DI 構成は `DiProvider` の標準構成をそのまま使用する。DI 切替後は `DiProvider.Get().GetService<ISearchEngine>()` が `PvsSearchEngine` を返すため、`FindBestMover` は自動的に `PvsSearchEngine` 経由で探索を実行する。テストコードの変更は DI 解決部分のみであり、テストの意図（`FindBestMover` 経由で終盤局面に対して有効な手が返ること）は維持される。
+
 ### 5.5 MSTest 並列実行の有効化
 
 `Reluca.Tests` プロジェクトに `AssemblyInfo.cs` を追加する。
@@ -133,7 +135,19 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 [assembly: Parallelize(Scope = ExecutionScope.ClassLevel)]
 ```
 
-**注意:** `ZobristTranspositionTable` が Singleton で DI 登録されているため、TT を使うテストクラス間で干渉する可能性がある。`PvsSearchEngine` は Transient だが TT は共有される。テストクラスごとに TT を Clear するか、テストの独立性を検証し、問題があれば `Workers` 数を制限する。
+#### TT 共有に対する緩和策
+
+`ZobristTranspositionTable` が Singleton で DI 登録されているため、TT を使うテストクラスが並列実行されると、テスト間で TT の内容が干渉する可能性がある。
+
+**採用する緩和策**: `PvsSearchEngine.Search()` は探索開始時に `_transpositionTable.Clear()` を呼び出しており、各探索の開始時点で TT はクリアされる。ただし、並列実行中に他のテストクラスが同時に TT へ Store/Probe を行うと非決定的な結果を招く恐れがある。これを防ぐため、TT を使用するテストクラスに `[DoNotParallelize]` 属性を付与し、TT 使用テスト同士が並列実行されないようにする。具体的には以下のテストクラスが対象である。
+
+- `PvsSearchEngineWithTTUnitTest`
+- `PvsSearchEngineAspirationWindowUnitTest`（TT ON のテストを含む）
+- `PvsSearchEngineAspirationTuningUnitTest`（TT ON のテストを含む）
+- `PvsSearchEngineMpcUnitTest`（TT ON のテストを含む）
+- `FindBestMoverUnitTest`（`FindBestMover` が全オプション ON で TT を使用する）
+
+TT を使わないテストクラス（`PvsSearchEngineIterativeDeepeningUnitTest` の TT OFF テスト等）は並列実行の恩恵を受ける。
 
 ### 5.6 Search 系テストの探索深さ削減
 
@@ -148,9 +162,17 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 depth=10 のテスト `MPC_ON時のNodesSearchedがMPC_OFF時より少ない` は depth=7 に削減する。
 
+#### depth 削減に伴うアサーション更新方針
+
+depth を変更すると探索結果が変わるため、既存のアサーション値（期待される最善手、ノード数の比較条件等）が成立しなくなる可能性がある。以下の方針で対応する。
+
+- **有効な手を返す系**: アサーションは「合法手の集合に含まれること」であるため、depth 変更の影響を受けない。更新不要である。
+- **ON/OFF 比較系（BestMove/Value 一致）**: depth=5 でも ON/OFF で同一結果が返ることを実測で確認する。不一致の場合は depth=5 での実測値に更新する。
+- **ノード数比較系**: アサーションは「ON 時のノード数 < OFF 時のノード数」という相対比較であるため、depth 変更の影響を受けにくい。depth=5〜7 でも枝刈り効果の大小関係が維持されることを実測で確認する。
+
 ### 5.7 Cachers ディレクトリの扱い
 
-`Cachers/` ディレクトリ配下のファイルを全て削除した後、`ICacheable` インターフェースが他から参照されていなければディレクトリごと削除する。
+`Cachers/` ディレクトリ配下の `MobilityCacher.cs` / `EvalCacher.cs` / `ReverseResultCacher.cs` を削除する。`ICacheable<TKey, TValue>` インターフェース（`Cachers/ICacheable.cs`）はこれら3つの Cacher クラスからのみ実装されており、他に参照元は存在しない（コードベース調査で確認済み）。したがって `ICacheable.cs` も削除し、`Cachers/` ディレクトリごと削除する。
 
 ## 6. 代替案の検討 (Alternatives Considered)
 
@@ -168,7 +190,7 @@ depth=10 のテスト `MPC_ON時のNodesSearchedがMPC_OFF時より少ない` �
 
 ### 選定理由
 
-案B を採用する。旧コードは `PvsSearchEngine` の完全な下位互換であり、残す理由がない。一括で行うことで中間状態（旧コードが残っている期間）を排除できる。テスト高速化も同時に行うことで、以降の開発サイクル全体が高速化する。
+案B を採用する。旧コードは `PvsSearchEngine` の完全な下位互換であり、残す理由がない。一括で行うことで中間状態（旧コードが残っている期間）を排除できる。テスト高速化も同時に行うことで、以降の開発サイクル全体が高速化する。問題発生時の切り戻しは Git revert で対応可能であり、タスク間にゲート条件を設けることでリスクを緩和する（9章 実装計画を参照）。
 
 ## 7. 横断的関心事 (Cross-Cutting Concerns)
 
@@ -182,6 +204,16 @@ depth=10 のテスト `MPC_ON時のNodesSearchedがMPC_OFF時より少ない` �
 - **反復深化**: 浅い探索の結果を Move Ordering に活用
 
 ただし、全オプション ON での本番動作は初めてとなるため、UI 対局での応答時間を検証する必要がある。
+
+#### 応答時間が許容範囲を超えた場合の緩和策
+
+UI 対局で1手あたりの応答時間が 10 秒を超える場合、以下の順序でオプションを段階的に無効化して原因を特定し、許容範囲内に収める。
+
+1. `useMultiProbCut: false` に変更（MPC の統計的枝刈りが逆効果の場合）
+2. `useAspirationWindow: false` に変更（Aspiration Window の fail-high/low 再探索が過多の場合）
+3. `aspirationUseStageTable: false` に変更（ステージ別テーブルによる初期窓が不適切な場合）
+
+各段階で応答時間を再計測し、許容範囲内に収まった時点で確定する。TT は常に有効とする（無効化すると性能が大幅に劣化するため）。
 
 ### 7.2 マイグレーションと後方互換性
 
@@ -209,31 +241,42 @@ depth=10 のテスト `MPC_ON時のNodesSearchedがMPC_OFF時より少ない` �
 
 1. **全テスト PASS**: depth 削減後も全テストが PASS すること
 2. **テスト実行時間**: 170秒→30秒以下に短縮されていること
-3. **UI 対局**: `PvsSearchEngine`（全オプション ON）で UI 対局が正常に動作すること
+3. **UI 対局の動作検証**: `PvsSearchEngine`（全オプション ON）で UI 対局を実施し、以下の基準を全て満たすこと
+   - 合法手が返される（盤面上の有効な位置に着手できる）
+   - 1手あたりの応答時間が 10 秒以内である（depth=7 の中盤局面で計測）
+   - 対局を最後まで完走できる（途中で例外やフリーズが発生しない）
 4. **並列実行の安全性**: MSTest 並列実行で TT の干渉によるテスト失敗が発生しないこと
 
 ## 9. 実装・リリース計画 (Implementation Plan)
 
 ### タスク一覧
 
-| # | タスク | 依存 |
-|---|---|---|
-| 1 | DI 登録を `PvsSearchEngine` に変更 | - |
-| 2 | `FindBestMover` で全オプション有効化 | 1 |
-| 3 | 旧探索コード一式を削除（NegaMax / CachedNegaMax / NegaMaxTemplate / ISerchable / LegacySearchEngine） | 1 |
-| 4 | Cacher 群を削除（MobilityCacher / EvalCacher / ReverseResultCacher）+ DiProvider から DI 登録削除 | 3 |
-| 5 | `NegaMaxTest.cs` / `LegacySearchEngineUnitTest.cs` を削除 | 3 |
-| 6 | `FindBestMover` 統合テストを `FindBestMoverUnitTest.cs` に移設 | 5 |
-| 7 | MSTest 並列実行有効化（`AssemblyInfo.cs` 追加） | - |
-| 8 | Search 系テストの depth 削減（7→5, 10→7） | - |
-| 9 | 全テスト実行・実行時間計測 | 1-8 |
-| 10 | `Cachers/` ディレクトリ・`ICacheable` の不要判断と削除 | 4 |
+| # | タスク | 依存 | ゲート条件 |
+|---|---|---|---|
+| 1 | DI 登録を `PvsSearchEngine` に変更 | - | - |
+| 2 | `FindBestMover` で全オプション有効化 | 1 | ビルド成功・全テスト PASS |
+| 3 | 旧探索コード一式を削除（NegaMax / CachedNegaMax / NegaMaxTemplate / ISerchable / LegacySearchEngine） | 2 | ビルド成功・全テスト PASS |
+| 4 | Cacher 群を削除（MobilityCacher / EvalCacher / ReverseResultCacher / ICacheable）+ DiProvider から DI 登録削除 | 3 | ビルド成功 |
+| 5 | `NegaMaxTest.cs` / `LegacySearchEngineUnitTest.cs` を削除 | 3 | - |
+| 6 | `FindBestMover` 統合テストを `FindBestMoverUnitTest.cs` に移設 | 5 | - |
+| 7 | MSTest 並列実行有効化（`AssemblyInfo.cs` 追加）+ TT 使用テストクラスに `[DoNotParallelize]` 付与 | - | - |
+| 8 | Search 系テストの depth 削減（7→5, 10→7）+ アサーション値の実測更新 | - | - |
+| 9 | 全テスト実行・実行時間計測 | 1-8 | 全テスト PASS・実行時間 30 秒以下 |
+| 10 | `Cachers/` ディレクトリ削除 | 4 | ビルド成功 |
+
+### ゲート条件と切り戻し方針
+
+タスク間にゲート条件を設け、各段階で品質を確認する。ゲート条件を満たさない場合は、直前のコミットに `git revert` で切り戻す。
+
+- **タスク 2 完了後**: `dotnet build` が成功し、`dotnet test` で全テスト PASS を確認する。失敗した場合、DI 切替またはオプション有効化に問題がある。タスク 1-2 のコミットを revert する。
+- **タスク 3 完了後**: `dotnet build` が成功し、`dotnet test` で全テスト PASS を確認する。ビルドエラーが発生した場合、削除対象外のコードから旧コードへの参照が残っている。参照を調査し、削除範囲を修正する。
+- **タスク 9 完了後**: 全テスト PASS かつ実行時間 30 秒以下を確認する。実行時間が目標を超える場合、depth 値または並列設定を調整する。
 
 ### 検証方法
 
 - `dotnet test` で全テスト PASS を確認
 - 実行時間が30秒以下であることを計測
-- UI 対局で `PvsSearchEngine` が正常動作することを手動確認
+- UI 対局で以下を手動確認: 合法手が返される、1手あたり 10 秒以内、対局を完走できる
 
 ### システム概要ドキュメントへの影響
 
