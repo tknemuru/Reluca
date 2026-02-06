@@ -91,6 +91,7 @@ Reluca/
 | `MpcParameterTable` | Multi-ProbCut のステージ別・カットペア別回帰パラメータテーブル |
 | `MpcParameters` | Multi-ProbCut の回帰パラメータ（a, b, sigma）を保持するデータクラス |
 | `MpcCutPair` | Multi-ProbCut のカットペア定義（浅い探索深さ、深い探索深さ）を保持するデータクラス |
+| `AspirationParameterTable` | Aspiration Window のステージ別 delta テーブル。序盤/中盤/終盤で異なる初期 delta を管理し、深さ補正を適用する |
 
 ### Transposition（置換表）
 
