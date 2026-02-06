@@ -1,3 +1,5 @@
+using Reluca.Models;
+
 /// <summary>
 /// 【ModuleDoc】
 /// 責務: ステージ別・カットペア別の MPC 回帰パラメータテーブルを管理する
@@ -81,7 +83,7 @@ namespace Reluca.Search
                 { "late",  new[] { 300.0,  500.0,  700.0 } },   // 終盤（ステージ 11〜15）
             };
 
-            for (int stage = 1; stage <= 15; stage++)
+            for (int stage = 1; stage <= Stage.Max; stage++)
             {
                 // ステージ区分の判定
                 double[] sigmas;
@@ -99,7 +101,7 @@ namespace Reluca.Search
                 }
 
                 var pairs = new Dictionary<int, MpcParameters>();
-                for (int cutPairIndex = 0; cutPairIndex < 3; cutPairIndex++)
+                for (int cutPairIndex = 0; cutPairIndex < CutPairs.Count; cutPairIndex++)
                 {
                     pairs[cutPairIndex] = new MpcParameters(
                         a: 1.0,
