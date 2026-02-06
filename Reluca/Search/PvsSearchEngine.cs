@@ -24,6 +24,13 @@
 /// - fail-low/high 判定は初期窓境界（initialAlpha/initialBeta）で行う
 /// - δ 拡大時はオーバーフロー防止のため MaxDelta で clamp
 /// - retry 中は TT Store を抑制し、最終確定時のみ Store を許可（TT Clear 不要）
+///
+/// Multi-ProbCut (MPC) の責務:
+/// - 浅い探索の評価値から深い探索の結果を統計的に予測し、枝刈りを行う
+/// - TT Probe 後・合法手展開前に MPC 判定を挿入
+/// - _mpcEnabled フラグにより MPC の再帰適用を防止（シングルスレッド前提）
+/// - カットペアを深い方から順に評価し、最初にカット条件が成立した時点で枝刈り確定
+/// - パス直後のノード（isPassed == true）では MPC を適用しない
 /// </summary>
 using Microsoft.Extensions.Logging;
 using Reluca.Accessors;
@@ -86,6 +93,11 @@ namespace Reluca.Search
         private readonly IZobristHash _zobristHash;
 
         /// <summary>
+        /// MPC パラメータテーブル
+        /// </summary>
+        private readonly MpcParameterTable _mpcParameterTable;
+
+        /// <summary>
         /// 探索中の最善手
         /// </summary>
         private int _bestMove;
@@ -116,6 +128,17 @@ namespace Reluca.Search
         private long _nodesSearched;
 
         /// <summary>
+        /// MPC の再帰適用を防止するフラグ。
+        /// MPC 用の浅い探索内で再帰的に MPC が適用されることを防止する。
+        /// </summary>
+        private bool _mpcEnabled;
+
+        /// <summary>
+        /// MPC カット発生回数カウンタ
+        /// </summary>
+        private long _mpcCutCount;
+
+        /// <summary>
         /// コンストラクタ。DI から依存を注入します。
         /// </summary>
         /// <param name="logger">ロガー</param>
@@ -123,18 +146,21 @@ namespace Reluca.Search
         /// <param name="reverseUpdater">石の裏返し更新機能</param>
         /// <param name="transpositionTable">置換表</param>
         /// <param name="zobristHash">Zobrist ハッシュ計算機能</param>
+        /// <param name="mpcParameterTable">MPC パラメータテーブル</param>
         public PvsSearchEngine(
             ILogger<PvsSearchEngine> logger,
             MobilityAnalyzer mobilityAnalyzer,
             MoveAndReverseUpdater reverseUpdater,
             ITranspositionTable transpositionTable,
-            IZobristHash zobristHash)
+            IZobristHash zobristHash,
+            MpcParameterTable mpcParameterTable)
         {
             _logger = logger;
             _mobilityAnalyzer = mobilityAnalyzer;
             _reverseUpdater = reverseUpdater;
             _transpositionTable = transpositionTable;
             _zobristHash = zobristHash;
+            _mpcParameterTable = mpcParameterTable;
             _bestMove = -1;
         }
 
@@ -152,6 +178,7 @@ namespace Reluca.Search
             _bestMove = -1;
             _evaluator = evaluator;
             _options = options;
+            _mpcEnabled = options.UseMultiProbCut;
 
             // TT 使用時は探索開始前に1回だけクリア（反復ごとの Clear は禁止）
             if (options.UseTranspositionTable)
@@ -168,6 +195,7 @@ namespace Reluca.Search
             {
                 _currentDepth = depth;
                 _nodesSearched = 0;
+                _mpcCutCount = 0;
 
                 // Aspiration Window: depth >= 2 かつ UseAspirationWindow=true の場合
                 if (depth >= 2 && options.UseAspirationWindow)
@@ -186,7 +214,8 @@ namespace Reluca.Search
                     Depth = depth,
                     Nodes = _nodesSearched,
                     TotalNodes = totalNodesSearched,
-                    Value = result.Value
+                    Value = result.Value,
+                    MpcCuts = _mpcCutCount
                 });
 
                 prevValue = result.Value;
@@ -399,6 +428,17 @@ namespace Reluca.Search
                 }
             }
 
+            // MPC 判定（TT Probe 後・合法手展開前に挿入）
+            // パス直後のノードでは MPC を適用しない（局面の性質が大きく変化しているため）
+            if (_mpcEnabled && !isPassed)
+            {
+                var mpcResult = TryMultiProbCut(context, remainingDepth, alpha, beta);
+                if (mpcResult.HasValue)
+                {
+                    return mpcResult.Value;
+                }
+            }
+
             // 合法手を取得
             var moves = _mobilityAnalyzer.Analyze(context);
 
@@ -470,6 +510,73 @@ namespace Reluca.Search
             }
 
             return maxValue;
+        }
+
+        /// <summary>
+        /// Multi-ProbCut による枝刈り判定を行う。
+        /// カットペアを深い方から順に評価し、カット条件が成立した場合はカット値を返す。
+        /// カット条件が成立しない場合は null を返す。
+        /// </summary>
+        /// <param name="context">現在のゲーム状態</param>
+        /// <param name="remainingDepth">残り探索深さ</param>
+        /// <param name="alpha">アルファ値</param>
+        /// <param name="beta">ベータ値</param>
+        /// <returns>カット値。カットしない場合は null</returns>
+        private long? TryMultiProbCut(GameContext context, int remainingDepth, long alpha, long beta)
+        {
+            var cutPairs = _mpcParameterTable.CutPairs;
+            double zValue = _mpcParameterTable.ZValue;
+
+            // カットペアを深い方から順に判定
+            for (int i = cutPairs.Count - 1; i >= 0; i--)
+            {
+                var pair = cutPairs[i];
+
+                // 適用条件: remainingDepth >= deepDepth
+                if (remainingDepth < pair.DeepDepth)
+                {
+                    continue;
+                }
+
+                var parameters = _mpcParameterTable.GetParameters(context.Stage, i);
+                if (parameters == null)
+                {
+                    continue;
+                }
+
+                double a = parameters.A;
+                double b = parameters.B;
+                double sigma = parameters.Sigma;
+
+                // 浅い探索を実行（MPC 用の探索では MPC を再帰適用しない）
+                // Aspiration retry 中の _suppressTTStore も一時的に解除する
+                // （MPC 用浅い探索は独立した探索であり、Aspiration retry の TT Store 抑制の影響を受けるべきではない）
+                bool savedMpcFlag = _mpcEnabled;
+                bool savedSuppressTTStore = _suppressTTStore;
+                _mpcEnabled = false;
+                _suppressTTStore = false;
+                long shallowValue = Pvs(context, pair.ShallowDepth, DefaultAlpha, DefaultBeta, false);
+                _mpcEnabled = savedMpcFlag;
+                _suppressTTStore = savedSuppressTTStore;
+
+                // Beta カット判定: shallowValue >= (zValue * sigma + beta - b) / a
+                double betaThreshold = (zValue * sigma + (double)beta - b) / a;
+                if (shallowValue >= (long)Math.Ceiling(betaThreshold))
+                {
+                    _mpcCutCount++;
+                    return beta; // beta カット
+                }
+
+                // Alpha カット判定: shallowValue <= (-zValue * sigma + alpha - b) / a
+                double alphaThreshold = (-zValue * sigma + (double)alpha - b) / a;
+                if (shallowValue <= (long)Math.Floor(alphaThreshold))
+                {
+                    _mpcCutCount++;
+                    return alpha; // alpha カット（fail-low）
+                }
+            }
+
+            return null; // カットなし
         }
 
         /// <summary>
