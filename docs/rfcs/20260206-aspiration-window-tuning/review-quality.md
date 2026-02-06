@@ -8,11 +8,11 @@
 
 ### 2. 良い点 (Strengths)
 
-- Section 5.2.1: `Dictionary<int, long>` から `long[]` 配列への変更により、GC 圧力の削減とキャッシュ効率の向上が実現された。前回 P1-1 の指摘が適切に反映されている。
-- Section 5.2.2: `GetDepthFactor(double)` を廃止し `GetAdjustedDelta(long, int)` に変更したことで、浮動小数点演算の非決定性リスクが排除され、前回 P0-1 が解消された。
-- Section 5.3.1: `ClampDelta` メソッドによるオーバーフロー安全な delta 拡張が導入され、乗算前の事前チェックにより `long` 範囲を超える演算が防止されている。
-- Section 5.5: retry カウンタのリセット位置が depth ループ先頭に修正され、前回 P1-2 の指摘が反映された。
-- Section 8 ユニットテスト: `GetAdjustedDelta` の具体的な期待値（`30*2=60`, `31*3/2=46`, `50*1=50`）が明示され、整数演算の切り捨て動作が検証可能となっている。
+- Section 5.3.1: `ExpandDelta` メソッドへの抽出により fail-low/fail-high の拡張ロジックの重複が排除され、保守性が向上している。
+- Section 5.3.1: `ClampDelta` に `Debug.Assert(factor > 0)` を追加し、ゼロ除算に対する防御的プログラミングが適切に実装されている。
+- Section 5.2.1: `DefaultDelta` の Doc コメントが拡充され、テーブル範囲外のフォールバック値としての用途と独立性が明確になっている。
+- Section 8: `ExpandDelta` と `ClampDelta` の新メソッドに対応するユニットテスト項目が追加され、テスト容易性が確保されている。
+- Section 9: フェーズ 0 完了後の RFC 更新手順の明記、MPC ON 時の撤退基準追加、デッドコード除去期限の追記により、実装計画の実行可能性が向上している。
 
 ### 3. 指摘事項 (Issues)
 
@@ -28,12 +28,6 @@
 
 **P0**: 該当なし
 
-**[P1-1] fail-low / fail-high の拡張ロジックの重複**
-- **対象セクション**: 5.7 PvsSearchEngine の変更
-- **内容**: `AspirationRootSearch()` の fail-low ブロックと fail-high ブロックの拡張ロジック（`useExponentialExpansion` の分岐含む）が完全に同一のコードである。コードの重複は保守時の変更漏れリスクを生む。
-- **修正の期待値**: 拡張ロジックを `ExpandDelta(long delta, int retryCount, bool useExponentialExpansion)` のようなプライベートメソッドに抽出し、fail-low / fail-high の両方から呼び出す構造に変更する。
+**P1**: 報告対象外（ラウンド 3 では P0 のみ報告）
 
-**[P1-2] AspirationParameterTable の DefaultDelta とテーブル値の不整合リスク**
-- **対象セクション**: 5.2.1 ステージ別 delta テーブルの導入
-- **内容**: `DefaultDelta = 50` がコンストラクタでハードコーディングされているが、ステージ 6〜10 のテーブル値も 50 である。`DefaultDelta` の用途はテーブル範囲外のステージへのフォールバックであるが、将来テーブル値を調整した際に `DefaultDelta` との整合性が見落とされる可能性がある。
-- **修正の期待値**: `DefaultDelta` の意味と用途（テーブル範囲外のステージ用フォールバック値であり、テーブル内の値とは独立して管理される）をコメントで明記する。
+**P2**: 報告対象外（ラウンド 3 では P0 のみ報告）
