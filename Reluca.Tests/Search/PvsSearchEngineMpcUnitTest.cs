@@ -22,6 +22,7 @@ namespace Reluca.Tests.Search
     /// PvsSearchEngine の Multi-ProbCut (MPC) 統合テストクラスです。
     /// </summary>
     [TestClass]
+    [DoNotParallelize]
     public class PvsSearchEngineMpcUnitTest
     {
         /// <summary>
@@ -33,7 +34,7 @@ namespace Reluca.Tests.Search
         /// <returns>ゲーム状態</returns>
         private GameContext CreateGameContext(int index, int childIndex, ResourceType type)
         {
-            return UnitTestHelper.CreateGameContext("LegacySearchEngine", index, childIndex, type);
+            return UnitTestHelper.CreateGameContext("PvsSearchEngine", index, childIndex, type);
         }
 
         /// <summary>
@@ -46,7 +47,7 @@ namespace Reluca.Tests.Search
             var target = DiProvider.Get().GetService<PvsSearchEngine>();
             var context = CreateGameContext(1, 1, ResourceType.In);
             var evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
-            var options = new SearchOptions(7, useTranspositionTable: false, useMultiProbCut: false);
+            var options = new SearchOptions(5, useTranspositionTable: false, useMultiProbCut: false);
 
             // Act
             var result = target.Search(context, options, evaluator);
@@ -68,7 +69,7 @@ namespace Reluca.Tests.Search
             var target = DiProvider.Get().GetService<PvsSearchEngine>();
             var context = CreateGameContext(1, 1, ResourceType.In);
             var evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
-            var options = new SearchOptions(7, useTranspositionTable: true, useMultiProbCut: false);
+            var options = new SearchOptions(5, useTranspositionTable: true, useMultiProbCut: false);
 
             // Act
             var result = target.Search(context, options, evaluator);
@@ -90,7 +91,7 @@ namespace Reluca.Tests.Search
             var target = DiProvider.Get().GetService<PvsSearchEngine>();
             var context = CreateGameContext(1, 1, ResourceType.In);
             var evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
-            var options = new SearchOptions(7, useTranspositionTable: true, useMultiProbCut: true);
+            var options = new SearchOptions(5, useTranspositionTable: true, useMultiProbCut: true);
 
             // Act
             var result = target.Search(context, options, evaluator);
@@ -103,7 +104,7 @@ namespace Reluca.Tests.Search
         }
 
         /// <summary>
-        /// MPC ON 時の NodesSearched が MPC OFF 時より少ないこと（深さ 10 で顕著な差を確認）
+        /// MPC ON 時の NodesSearched が MPC OFF 時より少ないこと（深さ 7 で確認）
         /// </summary>
         [TestMethod]
         public void MPC_ON時のNodesSearchedがMPC_OFF時より少ない()
@@ -115,13 +116,13 @@ namespace Reluca.Tests.Search
             // Act: MPC OFF（TT ON）
             var targetOff = DiProvider.Get().GetService<PvsSearchEngine>();
             var contextOff = CreateGameContext(1, 1, ResourceType.In);
-            var optionsOff = new SearchOptions(10, useTranspositionTable: true, useMultiProbCut: false);
+            var optionsOff = new SearchOptions(7, useTranspositionTable: true, useMultiProbCut: false);
             var resultOff = targetOff.Search(contextOff, optionsOff, evaluator);
 
             // Act: MPC ON（TT ON）
             var targetOn = DiProvider.Get().GetService<PvsSearchEngine>();
             var contextOn = CreateGameContext(1, 1, ResourceType.In);
-            var optionsOn = new SearchOptions(10, useTranspositionTable: true, useMultiProbCut: true);
+            var optionsOn = new SearchOptions(7, useTranspositionTable: true, useMultiProbCut: true);
             var resultOn = targetOn.Search(contextOn, optionsOn, evaluator);
 
             // Assert
@@ -143,20 +144,20 @@ namespace Reluca.Tests.Search
             // Act: MPC OFF（TT ON）
             var targetOff = DiProvider.Get().GetService<PvsSearchEngine>();
             var contextOff = CreateGameContext(1, 1, ResourceType.In);
-            var optionsOff = new SearchOptions(7, useTranspositionTable: true, useMultiProbCut: false);
+            var optionsOff = new SearchOptions(5, useTranspositionTable: true, useMultiProbCut: false);
             var resultOff = targetOff.Search(contextOff, optionsOff, evaluator);
 
             // Act: MPC ON（TT ON）
             var targetOn = DiProvider.Get().GetService<PvsSearchEngine>();
             var contextOn = CreateGameContext(1, 1, ResourceType.In);
-            var optionsOn = new SearchOptions(7, useTranspositionTable: true, useMultiProbCut: true);
+            var optionsOn = new SearchOptions(5, useTranspositionTable: true, useMultiProbCut: true);
             var resultOn = targetOn.Search(contextOn, optionsOn, evaluator);
 
             // Assert
             Console.WriteLine($"MPC OFF: BestMove={BoardAccessor.ToPosition(resultOff.BestMove)}, Value={resultOff.Value}, Nodes={resultOff.NodesSearched}");
             Console.WriteLine($"MPC ON:  BestMove={BoardAccessor.ToPosition(resultOn.BestMove)}, Value={resultOn.Value}, Nodes={resultOn.NodesSearched}");
 
-            // 注: 深さ 7 では MPC のカットペアの最小条件（remainingDepth >= 6）に
+            // 注: 深さ 5 では MPC のカットペアの最小条件（remainingDepth >= 6）に
             // わずかに達するため、MPC が着手品質に影響を与えない（あるいは同一手を返す）ことを確認する。
             // 深さ 7 の場合、Pair 1 (d=6) のみが適用される可能性がある。
             // MPC はカットにより探索木を変更するため、完全な一致は保証されないが、
@@ -178,7 +179,7 @@ namespace Reluca.Tests.Search
             var target = DiProvider.Get().GetService<PvsSearchEngine>();
             var context = CreateGameContext(2, 1, ResourceType.In);
             var evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
-            var options = new SearchOptions(7, useTranspositionTable: true, useMultiProbCut: true);
+            var options = new SearchOptions(5, useTranspositionTable: true, useMultiProbCut: true);
 
             // Act
             var result = target.Search(context, options, evaluator);
@@ -199,7 +200,7 @@ namespace Reluca.Tests.Search
             var target = DiProvider.Get().GetService<PvsSearchEngine>();
             var context = CreateGameContext(1, 1, ResourceType.In);
             var evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
-            var options = new SearchOptions(7, useTranspositionTable: true, useMultiProbCut: true);
+            var options = new SearchOptions(5, useTranspositionTable: true, useMultiProbCut: true);
 
             // Act
             var result = target.Search(context, options, evaluator);

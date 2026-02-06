@@ -7,14 +7,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Reluca.Analyzers;
-using Reluca.Cachers;
 using Reluca.Contexts;
 using Reluca.Converters;
 using Reluca.Evaluates;
 using Reluca.Movers;
 using Reluca.Search;
 using Reluca.Search.Transposition;
-using Reluca.Serchers;
 using Reluca.Services;
 using Reluca.Updaters;
 using Serilog;
@@ -102,11 +100,8 @@ namespace Reluca.Di
             services.AddSingleton<MobilityAnalyzer, MobilityAnalyzer>();
             services.AddSingleton<DiscCountEvaluator, DiscCountEvaluator>();
             services.AddSingleton<FindBestMover, FindBestMover>();
-            services.AddSingleton<MobilityCacher, MobilityCacher>();
-            services.AddSingleton<EvalCacher, EvalCacher>();
-            services.AddSingleton<ReverseResultCacher, ReverseResultCacher>();
 
-            // Transposition Table（Task 2 で追加）
+            // Transposition Table
             services.AddSingleton<TranspositionTableConfig, TranspositionTableConfig>();
             services.AddSingleton<ITranspositionTable, ZobristTranspositionTable>();
             services.AddSingleton<IZobristHash, ZobristHash>();
@@ -117,9 +112,7 @@ namespace Reluca.Di
             // Aspiration Window パラメータテーブル
             services.AddSingleton<AspirationParameterTable>();
 
-            services.AddTransient<NegaMax, NegaMax>();
-            services.AddTransient<CachedNegaMax, CachedNegaMax>();
-            services.AddTransient<ISearchEngine, LegacySearchEngine>();
+            services.AddTransient<ISearchEngine, PvsSearchEngine>();
             services.AddTransient<PvsSearchEngine, PvsSearchEngine>();
             var provider = services.BuildServiceProvider();
             return provider;

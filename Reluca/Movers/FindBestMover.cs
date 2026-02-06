@@ -61,7 +61,13 @@ namespace Reluca.Movers
                 depth = NormalDepth;
             }
 
-            var options = new SearchOptions(depth);
+            var options = new SearchOptions(
+                depth,
+                useTranspositionTable: true,
+                useAspirationWindow: true,
+                aspirationUseStageTable: true,
+                useMultiProbCut: true
+            );
             var result = SearchEngine.Search(context, options, evaluator);
 
             return result.BestMove;

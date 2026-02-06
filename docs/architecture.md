@@ -9,12 +9,11 @@ Reluca は、オセロ（リバーシ）の思考エンジンを提供する C# 
 ```
 Reluca/
 ├── Reluca/                 # メインライブラリ（思考エンジンコア）
-│   ├── Search/             # 探索エンジン（PVS, NegaMax）
+│   ├── Search/             # 探索エンジン（PVS）
 │   │   └── Transposition/  # 置換表（Zobrist ハッシング）
 │   ├── Evaluates/          # 局面評価（特徴パターン評価）
 │   ├── Movers/             # 指し手決定
 │   ├── Updaters/           # ゲーム状態更新
-│   ├── Cachers/            # キャッシング
 │   ├── Analyzers/          # 分析（着手可能数など）
 │   ├── Accessors/          # 盤面アクセサ
 │   ├── Contexts/           # コンテキスト（GameContext, BoardContext）
@@ -51,8 +50,6 @@ Reluca/
 │  ┌───────────────────────────────────────────┐  │
 │  │ Search: 探索エンジン                      │  │
 │  │  - PvsSearchEngine（PVS/NegaScout）       │  │
-│  │  - LegacySearchEngine（旧実装ラッパー）   │  │
-│  │  - NegaMax / CachedNegaMax               │  │
 │  └───────────────────────────────────────────┘  │
 │           │                     │               │
 │           ▼                     ▼               │
@@ -85,9 +82,6 @@ Reluca/
 | クラス | 責務 |
 |--------|------|
 | `PvsSearchEngine` | PVS（Principal Variation Search / NegaScout）による探索。反復深化、Aspiration Window、置換表、Multi-ProbCut を統合 |
-| `LegacySearchEngine` | 旧実装（NegaMax / CachedNegaMax）のラッパー |
-| `NegaMax` | 基本的な NegaMax 探索 |
-| `CachedNegaMax` | キャッシュ付き NegaMax 探索 |
 | `MpcParameterTable` | Multi-ProbCut のステージ別・カットペア別回帰パラメータテーブル |
 | `MpcParameters` | Multi-ProbCut の回帰パラメータ（a, b, sigma）を保持するデータクラス |
 | `MpcCutPair` | Multi-ProbCut のカットペア定義（浅い探索深さ、深い探索深さ）を保持するデータクラス |
@@ -125,14 +119,6 @@ Reluca/
 | `MobilityUpdater` | 着手可能位置を更新 |
 | `InitializeUpdater` | ゲーム初期化 |
 
-### Cachers（キャッシング）
-
-| クラス | 責務 |
-|--------|------|
-| `MobilityCacher` | 着手可能位置のキャッシュ |
-| `EvalCacher` | 評価値のキャッシュ |
-| `ReverseResultCacher` | 裏返し結果のキャッシュ |
-
 ## 技術スタック
 
 | カテゴリ | 技術 |
@@ -142,7 +128,7 @@ Reluca/
 | DI コンテナ | Microsoft.Extensions.DependencyInjection |
 | ログ基盤 | Serilog + Microsoft.Extensions.Logging |
 | シリアライズ | Newtonsoft.Json |
-| テスト | xUnit |
+| テスト | MSTest |
 | UI | Windows Forms |
 
 ## 依存性注入

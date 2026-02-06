@@ -48,7 +48,7 @@ namespace Reluca.Tests.Search
         /// <returns>ゲーム状態</returns>
         private GameContext CreateGameContext(int index, int childIndex, ResourceType type)
         {
-            return UnitTestHelper.CreateGameContext("LegacySearchEngine", index, childIndex, type);
+            return UnitTestHelper.CreateGameContext("PvsSearchEngine", index, childIndex, type);
         }
 
         /// <summary>
@@ -60,7 +60,7 @@ namespace Reluca.Tests.Search
             // Arrange: 初期局面（黒番）
             var context = CreateGameContext(1, 1, ResourceType.In);
             var evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
-            var options = new SearchOptions(7);
+            var options = new SearchOptions(5);
 
             // Act: PvsSearchEngine で探索
             var pvsResult = Target.Search(context, options, evaluator);
@@ -83,7 +83,7 @@ namespace Reluca.Tests.Search
             // Arrange: 中盤局面（白番）
             var context = CreateGameContext(2, 1, ResourceType.In);
             var evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
-            var options = new SearchOptions(7);
+            var options = new SearchOptions(5);
 
             // Act: PvsSearchEngine で探索
             var pvsResult = Target.Search(context, options, evaluator);

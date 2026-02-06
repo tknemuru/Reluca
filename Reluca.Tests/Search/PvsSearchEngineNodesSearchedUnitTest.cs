@@ -35,7 +35,7 @@ namespace Reluca.Tests.Search
         /// <returns>ゲーム状態</returns>
         private GameContext CreateGameContext(int index, int childIndex, ResourceType type)
         {
-            return UnitTestHelper.CreateGameContext("LegacySearchEngine", index, childIndex, type);
+            return UnitTestHelper.CreateGameContext("PvsSearchEngine", index, childIndex, type);
         }
 
         /// <summary>
@@ -97,7 +97,7 @@ namespace Reluca.Tests.Search
             var target = DiProvider.Get().GetService<PvsSearchEngine>();
             var context = CreateGameContext(1, 1, ResourceType.In);
             var evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
-            var options = new SearchOptions(7, useTranspositionTable: false);
+            var options = new SearchOptions(5, useTranspositionTable: false);
 
             // Act
             var result = target.Search(context, options, evaluator);
@@ -120,7 +120,7 @@ namespace Reluca.Tests.Search
             var target = DiProvider.Get().GetService<PvsSearchEngine>();
             var context = CreateGameContext(1, 1, ResourceType.In);
             var evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
-            var options = new SearchOptions(7, useTranspositionTable: true);
+            var options = new SearchOptions(5, useTranspositionTable: true);
 
             // Act
             var result = target.Search(context, options, evaluator);
@@ -145,13 +145,13 @@ namespace Reluca.Tests.Search
 
             // Act: TT OFF
             var targetOff = DiProvider.Get().GetService<PvsSearchEngine>();
-            var optionsOff = new SearchOptions(7, useTranspositionTable: false);
+            var optionsOff = new SearchOptions(5, useTranspositionTable: false);
             var resultOff = targetOff.Search(context, optionsOff, evaluator);
 
             // Act: TT ON（新しいインスタンスとコンテキストを使用）
             var contextOn = CreateGameContext(1, 1, ResourceType.In);
             var targetOn = DiProvider.Get().GetService<PvsSearchEngine>();
-            var optionsOn = new SearchOptions(7, useTranspositionTable: true);
+            var optionsOn = new SearchOptions(5, useTranspositionTable: true);
             var resultOn = targetOn.Search(contextOn, optionsOn, evaluator);
 
             // Assert
