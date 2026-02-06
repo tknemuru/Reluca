@@ -19,11 +19,14 @@
 ///
 /// Aspiration Window の責務:
 /// - depth >= 2 で前回反復の評価値を中心に狭い窓で探索
-/// - fail-low/high 時は δ を2倍にして再探索（最大 AspirationMaxRetry 回）
+/// - AspirationUseStageTable = true 時: ステージ別 delta テーブル + 深さ補正 + 指数拡張戦略
+/// - AspirationUseStageTable = false 時: 固定 delta + 固定 2 倍拡張（従来動作）
+/// - fail-low/high 時は δ を拡張して再探索（最大 AspirationMaxRetry 回）
 /// - 再探索回数超過時はフルウィンドウにフォールバック（正しさ担保）
 /// - fail-low/high 判定は初期窓境界（initialAlpha/initialBeta）で行う
 /// - δ 拡大時はオーバーフロー防止のため MaxDelta で clamp
 /// - retry 中は TT Store を抑制し、最終確定時のみ Store を許可（TT Clear 不要）
+/// - retry 発生回数とフォールバック回数を計測し、ログ出力する
 ///
 /// Multi-ProbCut (MPC) の責務:
 /// - 浅い探索の評価値から深い探索の結果を統計的に予測し、枝刈りを行う
@@ -32,6 +35,7 @@
 /// - カットペアを深い方から順に評価し、最初にカット条件が成立した時点で枝刈り確定
 /// - パス直後のノード（isPassed == true）では MPC を適用しない
 /// </summary>
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Reluca.Accessors;
 using Reluca.Analyzers;
@@ -98,6 +102,11 @@ namespace Reluca.Search
         private readonly MpcParameterTable _mpcParameterTable;
 
         /// <summary>
+        /// Aspiration Window のステージ別パラメータテーブル
+        /// </summary>
+        private readonly AspirationParameterTable _aspirationParameterTable;
+
+        /// <summary>
         /// 探索中の最善手
         /// </summary>
         private int _bestMove;
@@ -139,6 +148,16 @@ namespace Reluca.Search
         private long _mpcCutCount;
 
         /// <summary>
+        /// Aspiration retry 発生回数カウンタ（深さごと）
+        /// </summary>
+        private int _aspirationRetryCount;
+
+        /// <summary>
+        /// Aspiration フルウィンドウフォールバック発生回数カウンタ（深さごと）
+        /// </summary>
+        private int _aspirationFallbackCount;
+
+        /// <summary>
         /// コンストラクタ。DI から依存を注入します。
         /// </summary>
         /// <param name="logger">ロガー</param>
@@ -147,13 +166,15 @@ namespace Reluca.Search
         /// <param name="transpositionTable">置換表</param>
         /// <param name="zobristHash">Zobrist ハッシュ計算機能</param>
         /// <param name="mpcParameterTable">MPC パラメータテーブル</param>
+        /// <param name="aspirationParameterTable">Aspiration Window のステージ別パラメータテーブル</param>
         public PvsSearchEngine(
             ILogger<PvsSearchEngine> logger,
             MobilityAnalyzer mobilityAnalyzer,
             MoveAndReverseUpdater reverseUpdater,
             ITranspositionTable transpositionTable,
             IZobristHash zobristHash,
-            MpcParameterTable mpcParameterTable)
+            MpcParameterTable mpcParameterTable,
+            AspirationParameterTable aspirationParameterTable)
         {
             _logger = logger;
             _mobilityAnalyzer = mobilityAnalyzer;
@@ -161,6 +182,7 @@ namespace Reluca.Search
             _transpositionTable = transpositionTable;
             _zobristHash = zobristHash;
             _mpcParameterTable = mpcParameterTable;
+            _aspirationParameterTable = aspirationParameterTable;
             _bestMove = -1;
         }
 
@@ -196,6 +218,8 @@ namespace Reluca.Search
                 _currentDepth = depth;
                 _nodesSearched = 0;
                 _mpcCutCount = 0;
+                _aspirationRetryCount = 0;
+                _aspirationFallbackCount = 0;
 
                 // Aspiration Window: depth >= 2 かつ UseAspirationWindow=true の場合
                 if (depth >= 2 && options.UseAspirationWindow)
@@ -215,7 +239,9 @@ namespace Reluca.Search
                     Nodes = _nodesSearched,
                     TotalNodes = totalNodesSearched,
                     Value = result.Value,
-                    MpcCuts = _mpcCutCount
+                    MpcCuts = _mpcCutCount,
+                    AspirationRetries = _aspirationRetryCount,
+                    AspirationFallbacks = _aspirationFallbackCount
                 });
 
                 prevValue = result.Value;
@@ -228,6 +254,8 @@ namespace Reluca.Search
         /// Aspiration Window を使用したルート探索を行います。
         /// 前回反復の評価値を中心に狭い窓で探索し、fail-low/high 時は窓を広げて再探索します。
         /// retry 中は TT への書き込みを抑制し、最終確定時のみ Store を許可します。
+        /// AspirationUseStageTable = true の場合、ステージ別 delta テーブルと指数拡張戦略を使用します。
+        /// AspirationUseStageTable = false の場合、固定 delta と固定 2 倍拡張を使用します（従来動作）。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <param name="depth">探索深さ</param>
@@ -235,7 +263,21 @@ namespace Reluca.Search
         /// <returns>探索結果（最善手と評価値）</returns>
         private SearchResult AspirationRootSearch(GameContext context, int depth, long prevValue)
         {
-            long delta = _options!.AspirationDelta;
+            // delta 初期値の決定
+            long delta;
+            bool useExponentialExpansion;
+            if (_options!.AspirationUseStageTable)
+            {
+                long baseDelta = _aspirationParameterTable.GetDelta(context.Stage);
+                delta = AspirationParameterTable.GetAdjustedDelta(baseDelta, depth);
+                useExponentialExpansion = true;
+            }
+            else
+            {
+                delta = _options.AspirationDelta;
+                useExponentialExpansion = false;
+            }
+
             int retryCount = 0;
 
             while (retryCount <= _options.AspirationMaxRetry)
@@ -253,17 +295,12 @@ namespace Reluca.Search
                 var result = RootSearch(context, depth, alpha, beta);
 
                 // fail-low/high 判定は初期窓境界で行う
-                if (result.Value <= initialAlpha)
+                if (result.Value <= initialAlpha || result.Value >= initialBeta)
                 {
-                    // fail-low: 窓が低すぎた → δ を拡大して再探索
-                    delta = Math.Min(delta * 2, MaxDelta);
+                    // fail-low または fail-high: delta を拡張して再探索
+                    delta = ExpandDelta(delta, retryCount, useExponentialExpansion);
                     retryCount++;
-                }
-                else if (result.Value >= initialBeta)
-                {
-                    // fail-high: 窓が高すぎた → δ を拡大して再探索
-                    delta = Math.Min(delta * 2, MaxDelta);
-                    retryCount++;
+                    _aspirationRetryCount++;
                 }
                 else
                 {
@@ -273,10 +310,52 @@ namespace Reluca.Search
                 }
             }
 
-            // 再探索回数超過: フルウィンドウにフォールバック（正しさ担保）
-            // TT Store を許可
+            // フォールバック: 再探索回数超過 → フルウィンドウで探索（正しさ担保）
+            _aspirationFallbackCount++;
             _suppressTTStore = false;
             return RootSearch(context, depth, DefaultAlpha, DefaultBeta);
+        }
+
+        /// <summary>
+        /// delta の拡張を行う。指数拡張と固定 2 倍拡張を切り替え可能。
+        /// fail-low / fail-high の両方から共通で呼び出される。
+        /// </summary>
+        /// <param name="delta">現在の delta</param>
+        /// <param name="retryCount">現在の retry 回数（0 始まり）</param>
+        /// <param name="useExponentialExpansion">指数拡張を使用するかどうか</param>
+        /// <returns>拡張後の delta</returns>
+        internal static long ExpandDelta(long delta, int retryCount, bool useExponentialExpansion)
+        {
+            if (useExponentialExpansion)
+            {
+                // 指数拡張（2^(retryCount+1) 倍）
+                long expansionFactor = 1L << (retryCount + 1);
+                return ClampDelta(delta, expansionFactor);
+            }
+            else
+            {
+                // 固定 2 倍拡張（従来動作）- ClampDelta で統一的にオーバーフロー防止
+                return ClampDelta(delta, 2);
+            }
+        }
+
+        /// <summary>
+        /// delta に拡張倍率を適用し、オーバーフロー防止のためクランプする。
+        /// 乗算前にオーバーフローチェックを行い、オーバーフローする場合は MaxDelta を返す。
+        /// </summary>
+        /// <param name="delta">現在の delta</param>
+        /// <param name="factor">拡張倍率（1 以上であること）</param>
+        /// <returns>クランプ後の delta</returns>
+        internal static long ClampDelta(long delta, long factor)
+        {
+            Debug.Assert(factor > 0, "factor must be positive to avoid division by zero");
+
+            // オーバーフロー防止: delta * factor が long.MaxValue を超える場合は MaxDelta を返す
+            if (delta > MaxDelta / factor)
+            {
+                return MaxDelta;
+            }
+            return Math.Min(delta * factor, MaxDelta);
         }
 
         /// <summary>

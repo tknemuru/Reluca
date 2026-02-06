@@ -114,6 +114,9 @@ namespace Reluca.Di
             // Multi-ProbCut パラメータテーブル
             services.AddSingleton<MpcParameterTable>();
 
+            // Aspiration Window パラメータテーブル
+            services.AddSingleton<AspirationParameterTable>();
+
             services.AddTransient<NegaMax, NegaMax>();
             services.AddTransient<CachedNegaMax, CachedNegaMax>();
             services.AddTransient<ISearchEngine, LegacySearchEngine>();

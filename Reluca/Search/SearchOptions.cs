@@ -8,6 +8,7 @@
 /// - UseAspirationWindow: ON/OFF 切替（デフォルト OFF）
 /// - AspirationDelta: 初期ウィンドウ幅（デフォルト 50）
 /// - AspirationMaxRetry: 最大再探索回数（デフォルト 3）
+/// - AspirationUseStageTable: ステージ別 delta テーブルおよび指数拡張戦略の ON/OFF 切替（デフォルト OFF）
 ///
 /// Multi-ProbCut パラメータ:
 /// - UseMultiProbCut: ON/OFF 切替（デフォルト OFF）
@@ -60,6 +61,13 @@ namespace Reluca.Search
         public int AspirationMaxRetry { get; }
 
         /// <summary>
+        /// Aspiration Window のステージ別 delta テーブルおよび指数拡張戦略を使用するかどうか。
+        /// true の場合、AspirationDelta は無視され、ステージ別テーブルの値と指数拡張戦略が使用される。
+        /// false の場合、既存の AspirationDelta と固定 2 倍拡張が使用される（後方互換）。
+        /// </summary>
+        public bool AspirationUseStageTable { get; }
+
+        /// <summary>
         /// Multi-ProbCut を使用するかどうか
         /// </summary>
         public bool UseMultiProbCut { get; }
@@ -72,6 +80,7 @@ namespace Reluca.Search
         /// <param name="useAspirationWindow">Aspiration Window を使用するか（省略時は false）</param>
         /// <param name="aspirationDelta">Aspiration Window の初期幅（省略時は 50）</param>
         /// <param name="aspirationMaxRetry">Aspiration の最大再探索回数（省略時は 3）</param>
+        /// <param name="aspirationUseStageTable">ステージ別 delta テーブルおよび指数拡張戦略を使用するか（省略時は false）</param>
         /// <param name="useMultiProbCut">Multi-ProbCut を使用するか（省略時は false）</param>
         public SearchOptions(
             int maxDepth = DefaultMaxDepth,
@@ -79,6 +88,7 @@ namespace Reluca.Search
             bool useAspirationWindow = false,
             long aspirationDelta = DefaultAspirationDelta,
             int aspirationMaxRetry = DefaultAspirationMaxRetry,
+            bool aspirationUseStageTable = false,
             bool useMultiProbCut = false)
         {
             MaxDepth = maxDepth;
@@ -86,6 +96,7 @@ namespace Reluca.Search
             UseAspirationWindow = useAspirationWindow;
             AspirationDelta = aspirationDelta;
             AspirationMaxRetry = aspirationMaxRetry;
+            AspirationUseStageTable = aspirationUseStageTable;
             UseMultiProbCut = useMultiProbCut;
         }
     }
