@@ -1,5 +1,3 @@
-using Reluca.Models;
-
 /// <summary>
 /// 【ModuleDoc】
 /// 責務: Aspiration Window のステージ別パラメータテーブルを管理する
@@ -12,6 +10,8 @@ using Reluca.Models;
 /// - 深さ補正は整数演算（分子/分母）で浮動小数点演算を回避
 /// - 範囲外のステージにはデフォルト delta をフォールバック値として返す
 /// </summary>
+using Reluca.Models;
+
 namespace Reluca.Search
 {
     /// <summary>

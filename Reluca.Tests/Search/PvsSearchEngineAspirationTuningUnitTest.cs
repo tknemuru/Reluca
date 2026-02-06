@@ -268,5 +268,26 @@ namespace Reluca.Tests.Search
             Assert.AreEqual(200, PvsSearchEngine.ClampDelta(50, 4));
             Assert.AreEqual(400, PvsSearchEngine.ClampDelta(50, 8));
         }
+
+        /// <summary>
+        /// ExpandDelta の固定 2 倍拡張パスにおけるオーバーフロー安全性:
+        /// delta が極端に大きい場合でもオーバーフローせず MaxDelta 以下の値を返すこと
+        /// </summary>
+        [TestMethod]
+        public void ExpandDelta_固定2倍拡張_オーバーフロー安全性()
+        {
+            // Arrange: MaxDelta = DefaultBeta - DefaultAlpha = 2000000000000000002
+            long maxDelta = 2000000000000000002L;
+
+            // Assert: delta * 2 が long.MaxValue を超えうる値でもオーバーフローしない
+            long result = PvsSearchEngine.ExpandDelta(long.MaxValue / 2, 0, false);
+            Assert.IsTrue(result <= maxDelta,
+                $"ExpandDelta（固定 2 倍）がオーバーフローしました: {result}");
+
+            // Assert: MaxDelta 付近の delta でもオーバーフローしない
+            long resultNearMax = PvsSearchEngine.ExpandDelta(maxDelta, 0, false);
+            Assert.IsTrue(resultNearMax <= maxDelta,
+                $"ExpandDelta（固定 2 倍、MaxDelta 付近）がオーバーフローしました: {resultNearMax}");
+        }
     }
 }

@@ -334,8 +334,8 @@ namespace Reluca.Search
             }
             else
             {
-                // 固定 2 倍拡張（従来動作）
-                return Math.Min(delta * 2, MaxDelta);
+                // 固定 2 倍拡張（従来動作）- ClampDelta で統一的にオーバーフロー防止
+                return ClampDelta(delta, 2);
             }
         }
 
