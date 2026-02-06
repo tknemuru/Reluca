@@ -84,10 +84,13 @@ Reluca/
 
 | クラス | 責務 |
 |--------|------|
-| `PvsSearchEngine` | PVS（Principal Variation Search / NegaScout）による探索。反復深化、Aspiration Window、置換表を統合 |
+| `PvsSearchEngine` | PVS（Principal Variation Search / NegaScout）による探索。反復深化、Aspiration Window、置換表、Multi-ProbCut を統合 |
 | `LegacySearchEngine` | 旧実装（NegaMax / CachedNegaMax）のラッパー |
 | `NegaMax` | 基本的な NegaMax 探索 |
 | `CachedNegaMax` | キャッシュ付き NegaMax 探索 |
+| `MpcParameterTable` | Multi-ProbCut のステージ別・カットペア別回帰パラメータテーブル |
+| `MpcParameters` | Multi-ProbCut の回帰パラメータ（a, b, sigma）を保持するデータクラス |
+| `MpcCutPair` | Multi-ProbCut のカットペア定義（浅い探索深さ、深い探索深さ）を保持するデータクラス |
 
 ### Transposition（置換表）
 

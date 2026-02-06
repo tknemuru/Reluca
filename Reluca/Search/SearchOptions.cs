@@ -8,6 +8,9 @@
 /// - UseAspirationWindow: ON/OFF 切替（デフォルト OFF）
 /// - AspirationDelta: 初期ウィンドウ幅（デフォルト 50）
 /// - AspirationMaxRetry: 最大再探索回数（デフォルト 3）
+///
+/// Multi-ProbCut パラメータ:
+/// - UseMultiProbCut: ON/OFF 切替（デフォルト OFF）
 /// </summary>
 namespace Reluca.Search
 {
@@ -57,6 +60,11 @@ namespace Reluca.Search
         public int AspirationMaxRetry { get; }
 
         /// <summary>
+        /// Multi-ProbCut を使用するかどうか
+        /// </summary>
+        public bool UseMultiProbCut { get; }
+
+        /// <summary>
         /// コンストラクタ
         /// </summary>
         /// <param name="maxDepth">最大探索深さ（省略時はデフォルト値）</param>
@@ -64,18 +72,21 @@ namespace Reluca.Search
         /// <param name="useAspirationWindow">Aspiration Window を使用するか（省略時は false）</param>
         /// <param name="aspirationDelta">Aspiration Window の初期幅（省略時は 50）</param>
         /// <param name="aspirationMaxRetry">Aspiration の最大再探索回数（省略時は 3）</param>
+        /// <param name="useMultiProbCut">Multi-ProbCut を使用するか（省略時は false）</param>
         public SearchOptions(
             int maxDepth = DefaultMaxDepth,
             bool useTranspositionTable = false,
             bool useAspirationWindow = false,
             long aspirationDelta = DefaultAspirationDelta,
-            int aspirationMaxRetry = DefaultAspirationMaxRetry)
+            int aspirationMaxRetry = DefaultAspirationMaxRetry,
+            bool useMultiProbCut = false)
         {
             MaxDepth = maxDepth;
             UseTranspositionTable = useTranspositionTable;
             UseAspirationWindow = useAspirationWindow;
             AspirationDelta = aspirationDelta;
             AspirationMaxRetry = aspirationMaxRetry;
+            UseMultiProbCut = useMultiProbCut;
         }
     }
 }

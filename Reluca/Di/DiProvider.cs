@@ -111,6 +111,9 @@ namespace Reluca.Di
             services.AddSingleton<ITranspositionTable, ZobristTranspositionTable>();
             services.AddSingleton<IZobristHash, ZobristHash>();
 
+            // Multi-ProbCut パラメータテーブル
+            services.AddSingleton<MpcParameterTable>();
+
             services.AddTransient<NegaMax, NegaMax>();
             services.AddTransient<CachedNegaMax, CachedNegaMax>();
             services.AddTransient<ISearchEngine, LegacySearchEngine>();
