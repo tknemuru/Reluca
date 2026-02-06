@@ -90,7 +90,7 @@ MPC では、複数の $(d', d)$ ペアを定義し、多段階に枝刈りを�
 | Pair 2 | 4 | 10 | `remainingDepth >= 10` |
 | Pair 3 | 6 | 14 | `remainingDepth >= 14` |
 
-**[仮定]** カットペアの深さは WZebra の文献に基づく典型的な構成である。差分（$d - d' = 4, 6, 8$）はオセロの分岐係数（約 10）において十分な相関が期待できる範囲として選定した。実装後のベンチマークで効果が不十分な場合、ペアの追加や深さの調整を行う。
+**[仮定]** カットペアの深さは、WZebra/Logistello の MPC 実装における多段階フィルタリングの構成に基づいている。WZebra アルゴリズム解析（[Section 4.4.1](../../reports/wzebra-algorithm.md)）によれば、WZebra は $(d'=4, d=8)$, $(d'=8, d=12)$, $(d'=12, d=16)$ のように深さ差 4 の等間隔ペアを連鎖的に適用する構成を採用している。本 RFC のカットペアは、Reluca の現状の探索深度上限（14〜16 手）に合わせてスケールダウンし、差分を $d - d' = 4, 6, 8$ と段階的に拡大する構成とした。差分が小さいペア（Pair 1: 差 4）は浅い探索と深い探索の相関が強く高い的中率が期待でき、差分が大きいペア（Pair 3: 差 8）はカットの効果が大きいが的中率がやや下がるトレードオフがある。Buro (1997) の Multi-ProbCut 論文においても、カットペアの差分は分岐係数と評価関数の安定性に依存するとされており、オセロの平均分岐係数（約 10）では差分 4〜8 が有効な範囲とされている。実装後のベンチマークで効果が不十分な場合、ペアの追加や深さの調整を行う。
 
 #### 適用ロジック
 
@@ -234,14 +234,50 @@ public class MpcParameterTable
     }
 
     /// <summary>
-    /// デフォルトのパラメータテーブルを構築する
+    /// デフォルトのパラメータテーブルを構築する。
+    /// ステージ区分（序盤/中盤/終盤）ごとに sigma 値を設定し、
+    /// 全ステージ共通で a=1.0, b=0.0 とする。
     /// </summary>
     private Dictionary<int, Dictionary<int, MpcParameters>> BuildDefaultTable()
     {
-        // 初期パラメータ（文献ベース）
-        // 詳細は「5.3.4 初期パラメータの設定方針」を参照
         var table = new Dictionary<int, Dictionary<int, MpcParameters>>();
-        // ... ステージごとのパラメータ設定 ...
+
+        // ステージ区分ごとの sigma 値: [cutPairIndex] -> sigma
+        var sigmaByStageBand = new Dictionary<string, double[]>
+        {
+            { "early", new[] { 800.0, 1200.0, 1600.0 } },  // 序盤（ステージ 1〜5）
+            { "mid",   new[] { 500.0,  800.0, 1100.0 } },  // 中盤（ステージ 6〜10）
+            { "late",  new[] { 300.0,  500.0,  700.0 } },   // 終盤（ステージ 11〜15）
+        };
+
+        for (int stage = 1; stage <= 15; stage++)
+        {
+            // ステージ区分の判定
+            double[] sigmas;
+            if (stage <= 5)
+            {
+                sigmas = sigmaByStageBand["early"];
+            }
+            else if (stage <= 10)
+            {
+                sigmas = sigmaByStageBand["mid"];
+            }
+            else
+            {
+                sigmas = sigmaByStageBand["late"];
+            }
+
+            var pairs = new Dictionary<int, MpcParameters>();
+            for (int cutPairIndex = 0; cutPairIndex < 3; cutPairIndex++)
+            {
+                pairs[cutPairIndex] = new MpcParameters(
+                    a: 1.0,
+                    b: 0.0,
+                    sigma: sigmas[cutPairIndex]);
+            }
+            table[stage] = pairs;
+        }
+
         return table;
     }
 }
@@ -267,7 +303,7 @@ public class MpcParameterTable
 | 中盤 (6〜10) | 500 | 800 | 1100 |
 | 終盤 (11〜15) | 300 | 500 | 700 |
 
-**[仮定]** これらの $\sigma$ 値は仮設定であり、実装後に自己対戦データから実測値を取得して調整する。$\sigma$ が小さすぎると誤った枝刈りが増加し着手品質が劣化し、大きすぎると枝刈りが発生しにくくなり探索効率の改善が不十分となる。初期値は保守的（大きめ）に設定し、品質検証を通じて段階的に最適化する方針とする。
+**[仮定]** これらの $\sigma$ 値は仮設定であり、実装後に自己対戦データから実測値を取得して調整する。$\sigma$ が小さすぎると誤った枝刈りが増加し着手品質が劣化し、大きすぎると枝刈りが発生しにくくなり探索効率の改善が不十分となる。初期値は保守的（大きめ）に設定し、品質検証を通じて段階的に最適化する方針とする。$\sigma$ 調整の具体的な判定基準は Section 8 の「$\sigma$ パラメータの調整基準」に定義する。
 
 ### 5.4 PvsSearchEngine への MPC 統合
 
@@ -300,7 +336,7 @@ private long Pvs(GameContext context, int remainingDepth, long alpha, long beta,
     }
 
     // === MPC 判定（ここに挿入） ===
-    if (_options?.UseMultiProbCut == true && !isPassed)
+    if (_mpcEnabled && !isPassed)
     {
         var mpcResult = TryMultiProbCut(context, remainingDepth, alpha, beta);
         if (mpcResult.HasValue)
@@ -358,15 +394,21 @@ private long? TryMultiProbCut(GameContext context, int remainingDepth, long alph
         double sigma = parameters.Sigma;
 
         // 浅い探索を実行（MPC 用の探索では MPC を再帰適用しない）
+        // Aspiration retry 中の _suppressTTStore も一時的に解除する
+        // （MPC 用浅い探索は独立した探索であり、Aspiration retry の TT Store 抑制の影響を受けるべきではない）
         bool savedMpcFlag = _mpcEnabled;
+        bool savedSuppressTTStore = _suppressTTStore;
         _mpcEnabled = false;
+        _suppressTTStore = false;
         long shallowValue = Pvs(context, pair.ShallowDepth, DefaultAlpha, DefaultBeta, false);
         _mpcEnabled = savedMpcFlag;
+        _suppressTTStore = savedSuppressTTStore;
 
         // Beta カット判定: shallowValue >= (zValue * sigma + beta - b) / a
         double betaThreshold = (zValue * sigma + (double)beta - b) / a;
         if (shallowValue >= (long)Math.Ceiling(betaThreshold))
         {
+            _mpcCutCount++;
             return beta; // beta カット
         }
 
@@ -374,6 +416,7 @@ private long? TryMultiProbCut(GameContext context, int remainingDepth, long alph
         double alphaThreshold = (-zValue * sigma + (double)alpha - b) / a;
         if (shallowValue <= (long)Math.Floor(alphaThreshold))
         {
+            _mpcCutCount++;
             return alpha; // alpha カット（fail-low）
         }
     }
@@ -395,7 +438,7 @@ private bool _mpcEnabled;
 
 `Search()` メソッドの冒頭で `_mpcEnabled = options.UseMultiProbCut` に初期化する。`TryMultiProbCut()` 内で浅い探索を実行する際に `_mpcEnabled = false` に設定し、探索完了後に元の値を復元する。
 
-`Pvs()` メソッドの MPC 判定条件は `_options?.UseMultiProbCut == true` から `_mpcEnabled` に変更する。
+`Pvs()` メソッドの MPC 判定条件は `_mpcEnabled` を使用する（`_options?.UseMultiProbCut == true` ではなく `_mpcEnabled` で判定することで、再帰適用を防止する）。
 
 ```csharp
 // MPC 判定（_mpcEnabled で再帰適用を防止）
@@ -409,7 +452,45 @@ if (_mpcEnabled && !isPassed)
 }
 ```
 
-#### 5.4.4 浅い探索の窓幅
+**注記（スレッドセーフティ）:** 本設計はシングルスレッド前提である。`_mpcEnabled` および `_suppressTTStore` の save/restore パターンはスレッドセーフではない。将来、並列探索を導入する際には、これらのフラグ管理方式をスレッドローカル変数または引数渡しに変更する必要がある。
+
+#### 5.4.4 MPC カットカウンタの管理
+
+MPC カットの発生回数を計測するため、インスタンスフィールド `_mpcCutCount` を `PvsSearchEngine` に追加する。
+
+```csharp
+/// <summary>
+/// MPC カット発生回数カウンタ
+/// </summary>
+private long _mpcCutCount;
+```
+
+- **リセットタイミング**: `Search()` メソッドの反復深化ループ内で、各深さの探索開始時に `_nodesSearched` と同様にリセットする（`_mpcCutCount = 0`）。
+- **インクリメント位置**: `TryMultiProbCut()` 内で beta カットまたは alpha カットが成立し、値を `return` する直前にインクリメントする。
+- **ログ出力**: 反復深化の各深さ完了時のログに `MpcCuts` として出力する（Section 7.2 参照）。
+
+```csharp
+// Search() メソッド内の反復深化ループ
+for (int depth = 1; depth <= options.MaxDepth; depth++)
+{
+    _currentDepth = depth;
+    _nodesSearched = 0;
+    _mpcCutCount = 0;  // 各反復の開始時にリセット
+
+    // ... 探索実行 ...
+
+    _logger.LogInformation("探索進捗 {@SearchProgress}", new
+    {
+        Depth = depth,
+        Nodes = _nodesSearched,
+        TotalNodes = totalNodesSearched,
+        Value = result.Value,
+        MpcCuts = _mpcCutCount
+    });
+}
+```
+
+#### 5.4.5 浅い探索の窓幅
 
 `TryMultiProbCut()` 内の浅い探索ではフルウィンドウ（`DefaultAlpha`, `DefaultBeta`）を使用する。
 
@@ -483,7 +564,7 @@ public PvsSearchEngine(
 | `Reluca/Search/MpcParameters.cs` | **新規作成** - 回帰パラメータのデータクラス |
 | `Reluca/Search/MpcCutPair.cs` | **新規作成** - カットペア定義のデータクラス |
 | `Reluca/Search/MpcParameterTable.cs` | **新規作成** - ステージ別パラメータテーブルの管理 |
-| `Reluca/Search/PvsSearchEngine.cs` | MPC 判定ロジックの追加、`TryMultiProbCut()` メソッド追加、`_mpcEnabled` フラグ追加 |
+| `Reluca/Search/PvsSearchEngine.cs` | MPC 判定ロジックの追加、`TryMultiProbCut()` メソッド追加、`_mpcEnabled` フラグ追加、`_mpcCutCount` カウンタ追加 |
 | `Reluca/Search/SearchOptions.cs` | `UseMultiProbCut` プロパティ追加 |
 | `Reluca/Di/DiProvider.cs` | `MpcParameterTable` の DI 登録 |
 
@@ -532,6 +613,7 @@ MPC の効果を早期に検証するため、案 A を採用する。案 B は�
 - MPC 判定自体のコストは「浅い探索 1 回」である。この浅い探索のコストが、カットによって省略される深い探索のコストを下回る場合にのみ MPC は効果を発揮する。探索木の上位ノード（`remainingDepth` が大きいノード）でカットが発生するほど、省略される探索量が指数関数的に増大するため、カットペアの設計は深いノードを優先している。
 - `TryMultiProbCut()` 内の浅い探索は TT を活用する。反復深化により浅い深さの探索結果は TT に蓄積されているため、MPC 用の浅い探索は TT ヒットにより高速に完了する可能性が高い。
 - 閾値の計算（`betaThreshold`, `alphaThreshold`）は浮動小数点演算を含むが、1 ノードあたり最大 3 回（カットペア数）の計算であり、探索全体のコストに対する影響は無視できる。
+- **フルウィンドウ浅い探索の最悪ケースにおけるノード数見積もり**: MPC 用の浅い探索はフルウィンドウで実行されるが、TT ヒットがない最悪ケースでも、各カットペアのノード数は以下の通り十分に小さい。オセロの平均分岐係数を 10、Alpha-Beta の理想的枝刈りでノード数が $b^{d'/2}$ に削減されると仮定すると、Pair 1 ($d'=2$): 最大約 $10^1 = 10$ ノード、Pair 2 ($d'=4$): 最大約 $10^2 = 100$ ノード、Pair 3 ($d'=6$): 最大約 $10^3 = 1{,}000$ ノードとなる。一方、カットにより省略される深い探索のノード数は、Pair 1 ($d=6$): 最大約 $10^3 = 1{,}000$ ノード、Pair 2 ($d=10$): 最大約 $10^5 = 100{,}000$ ノード、Pair 3 ($d=14$): 最大約 $10^7 = 10{,}000{,}000$ ノードである。各ペアにおいて浅い探索のコストはカット効果の $1/100$ 以下であり、MPC が効果を発揮する十分な余裕がある。
 
 ### 7.2 可観測性 (Observability)
 
@@ -575,6 +657,19 @@ _logger.LogInformation("探索進捗 {@SearchProgress}", new
 | 着手品質の検証 | 複数の定石局面で MPC ON/OFF の着手を比較し、致命的な劣化がないこと |
 | 対 Legacy 勝率 | MPC ON の PvsSearchEngine vs LegacySearchEngine で勝率が同等以上であること |
 
+### $\sigma$ パラメータの調整基準
+
+初期 $\sigma$ 値は仮設定であるため、フェーズ 4（品質検証とパラメータ調整）において以下の定量的基準に従い調整を行う。
+
+| 指標 | 閾値 | アクション |
+|------|------|-----------|
+| NodesSearched 削減率 | 30% 未満 | 全ステージの $\sigma$ を一律 20% 削減する（枝刈りを積極化） |
+| NodesSearched 削減率 | 50% 以上 | 目標達成。$\sigma$ は現状維持とする |
+| 対 Legacy 勝率の低下 | 5% 以上低下 | 全ステージの $\sigma$ を一律 20% 増加する（枝刈りを慎重化） |
+| 対 Legacy 勝率の低下 | 10% 以上低下 | MPC を OFF にして原因調査を行う。$\sigma$ を初期値の 1.5 倍に設定し再検証する |
+
+調整は 1 パラメータずつ段階的に実施し、各調整後に NodesSearched 削減率と対 Legacy 勝率の両指標を再計測する。両指標が「NodesSearched 削減率 30% 以上」かつ「対 Legacy 勝率低下 5% 未満」を同時に満たす状態を収束条件とする。
+
 ### 検証方法
 
 - 既存テストを全て実行し、MPC OFF 時に探索結果が変更されないことを確認する
@@ -599,7 +694,7 @@ _logger.LogInformation("探索進捗 {@SearchProgress}", new
 
 - `PvsSearchEngine` に `_mpcEnabled` フラグと `_mpcCutCount` カウンタを追加する
 - `Pvs()` メソッドに MPC 判定の挿入ポイントを追加する
-- `TryMultiProbCut()` メソッドを実装する
+- `TryMultiProbCut()` メソッドを実装する（`_suppressTTStore` の退避・復元を含む）
 - `Search()` メソッドでの初期化とログ出力を追加する
 - ユニットテスト: MPC OFF 時の非干渉、MPC ON 時の NodesSearched 削減
 
@@ -607,7 +702,7 @@ _logger.LogInformation("探索進捗 {@SearchProgress}", new
 
 - 複数の局面で MPC ON/OFF の NodesSearched を比較し、削減率を計測する
 - 対 Legacy 自動対局を実施し、勝率を確認する
-- $\sigma$ パラメータを調整し、枝刈り率と着手品質のバランスを最適化する
+- Section 8 の「$\sigma$ パラメータの調整基準」に従い、$\sigma$ パラメータを調整する
 - 必要に応じてカットペアの追加・変更を検討する
 
 ### リスク軽減策
