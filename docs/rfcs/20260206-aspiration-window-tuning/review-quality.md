@@ -2,16 +2,17 @@
 
 ### 1. 判定 (Decision)
 
-- **Status**: Request Changes
+- **Status**: Approve
 
 **判定基準:** P0 が1件以上存在する場合は Request Changes とする。P0 が0件の場合は Approve とする。
 
 ### 2. 良い点 (Strengths)
 
-- **Section 5.8 (DI 登録)**: `AspirationParameterTable` を Singleton として DI 登録する設計は、`MpcParameterTable` と同一のパターンであり、既存コードベースとの一貫性が保たれている。
-- **Section 5.2.2 (深さ別 delta 補正)**: `GetDepthFactor` を static メソッドとして実装することで、テスト容易性が確保されている。
-- **Section 5.5 (retry 計測機能)**: 既存のログ構造（`探索進捗 {@SearchProgress}`）への拡張であり、可観測性が追加コスト無しで向上する設計になっている。
-- **Section 7.1 (パフォーマンス)**: テーブル引き $O(1)$、ビットシフト演算の採用など、探索ホットパスへのオーバーヘッドを最小化する設計が意識されている。
+- Section 5.2.1: `Dictionary<int, long>` から `long[]` 配列への変更により、GC 圧力の削減とキャッシュ効率の向上が実現された。前回 P1-1 の指摘が適切に反映されている。
+- Section 5.2.2: `GetDepthFactor(double)` を廃止し `GetAdjustedDelta(long, int)` に変更したことで、浮動小数点演算の非決定性リスクが排除され、前回 P0-1 が解消された。
+- Section 5.3.1: `ClampDelta` メソッドによるオーバーフロー安全な delta 拡張が導入され、乗算前の事前チェックにより `long` 範囲を超える演算が防止されている。
+- Section 5.5: retry カウンタのリセット位置が depth ループ先頭に修正され、前回 P1-2 の指摘が反映された。
+- Section 8 ユニットテスト: `GetAdjustedDelta` の具体的な期待値（`30*2=60`, `31*3/2=46`, `50*1=50`）が明示され、整数演算の切り捨て動作が検証可能となっている。
 
 ### 3. 指摘事項 (Issues)
 
@@ -25,21 +26,14 @@
 
 #### 指摘一覧
 
-**[P0-1] AspirationParameterTable の深さ補正係数が double 返却で精度損失の可能性**
-- **対象セクション**: Section 5.2.2 (深さ別 delta 補正)
-- **内容**: `GetDepthFactor` は `double` を返し、`(long)(baseDelta * depthFactor)` でキャストしている。現在の補正係数（2.0, 1.5, 1.0）では問題ないが、1.5 倍の場合に `baseDelta = 30` だと `(long)(30 * 1.5) = 45` となり、`(long)(31 * 1.5) = 46`（実際は 46.5 で切り捨て）となる。この切り捨て動作が意図的であるか不明瞭である。浮動小数点演算を避け、整数演算（分子/分母のペア、例: depth <= 4 で `baseDelta * 3 / 2`）に変更すべきである。
-- **修正の期待値**: `GetDepthFactor` を整数ベースの補正に変更し（例: `GetAdjustedDelta(long baseDelta, int depth)` として直接補正後 delta を返す）、浮動小数点の切り捨てによる非決定的な動作を排除すること。
+**P0**: 該当なし
 
-**[P1-1] AspirationParameterTable の Dictionary 使用は過剰**
-- **対象セクション**: Section 5.2.1 (ステージ別 delta テーブルの導入)
-- **内容**: ステージは 1〜15 の固定範囲であり、`Dictionary<int, long>` を使用する必然性がない。`long[]` 配列（インデックス = stage - 1）で十分であり、GC 圧力の削減とキャッシュ効率の向上が見込める。`MpcParameterTable` が Dictionary を使用しているのはカットペアインデックスとの二次元アクセスのためであり、一次元の stage-to-delta マッピングに Dictionary を使う根拠が薄い。
-- **修正の期待値**: `_deltaByStage` を `long[]` 配列（サイズ 15）に変更し、`GetDelta` メソッドをインデックスアクセスに変更すること。
+**[P1-1] fail-low / fail-high の拡張ロジックの重複**
+- **対象セクション**: 5.7 PvsSearchEngine の変更
+- **内容**: `AspirationRootSearch()` の fail-low ブロックと fail-high ブロックの拡張ロジック（`useExponentialExpansion` の分岐含む）が完全に同一のコードである。コードの重複は保守時の変更漏れリスクを生む。
+- **修正の期待値**: 拡張ロジックを `ExpandDelta(long delta, int retryCount, bool useExponentialExpansion)` のようなプライベートメソッドに抽出し、fail-low / fail-high の両方から呼び出す構造に変更する。
 
-**[P1-2] AspirationRootSearch の retry カウンタリセットタイミング**
-- **対象セクション**: Section 5.7 (PvsSearchEngine の変更)
-- **内容**: `_aspirationRetryCount` と `_aspirationFallbackCount` のリセットが `AspirationRootSearch` メソッドの先頭で行われているが、反復深化のログ出力は `Search` メソッド内の各 depth ループで行われる。Aspiration Window を使用しない depth=1 の場合、これらのカウンタは初期化されない。`Search` メソッドの depth ループ先頭（`_nodesSearched = 0` と同じ位置）でリセットすべきである。
-- **修正の期待値**: `_aspirationRetryCount` と `_aspirationFallbackCount` のリセットを `Search` メソッドの depth ループ先頭に移動すること。
-
-**[P2-1] ステージ境界での delta の不連続変化**
-- **対象セクション**: Section 5.2.1 (ステージ別 delta テーブルの導入)
-- **内容**: ステージ 5→6 で delta が 80→50、ステージ 10→11 で 50→30 と不連続に変化する。ゲーム進行中にステージ境界をまたぐ局面で、前回反復と今回反復で異なるステージが適用された場合、delta の不連続変化により不必要な retry が発生する可能性がある。将来的な改善として線形補間や段階的な遷移を検討する余地がある。
+**[P1-2] AspirationParameterTable の DefaultDelta とテーブル値の不整合リスク**
+- **対象セクション**: 5.2.1 ステージ別 delta テーブルの導入
+- **内容**: `DefaultDelta = 50` がコンストラクタでハードコーディングされているが、ステージ 6〜10 のテーブル値も 50 である。`DefaultDelta` の用途はテーブル範囲外のステージへのフォールバックであるが、将来テーブル値を調整した際に `DefaultDelta` との整合性が見落とされる可能性がある。
+- **修正の期待値**: `DefaultDelta` の意味と用途（テーブル範囲外のステージ用フォールバック値であり、テーブル内の値とは独立して管理される）をコメントで明記する。
