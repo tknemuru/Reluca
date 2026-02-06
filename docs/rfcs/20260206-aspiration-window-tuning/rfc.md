@@ -123,7 +123,10 @@ public class AspirationParameterTable
     private readonly long[] _deltaByStage;
 
     /// <summary>
-    /// デフォルトの delta 初期値（テーブル範囲外のステージ用）
+    /// デフォルトの delta 初期値。
+    /// テーブル範囲外のステージ（stage &lt; 1 または stage &gt; Stage.Max）に対する
+    /// フォールバック値として使用される。テーブル内の各ステージの値とは独立して
+    /// 管理されるため、テーブル値を調整する際にこの値を連動して変更する必要はない。
     /// </summary>
     public long DefaultDelta { get; }
 
@@ -237,7 +240,7 @@ retry 1: delta * 4     (2回連続 fail → より大きく拡張)
 retry 2: delta * 8     (3回連続 fail → さらに大きく拡張)
 ```
 
-具体的には、`AspirationRootSearch()` の拡張ロジックを以下のように変更する。
+具体的には、`AspirationRootSearch()` の拡張ロジックを以下のように変更する。fail-low と fail-high の拡張ロジックは同一であるため、`ExpandDelta` メソッドに抽出して重複を排除する。
 
 ```csharp
 private SearchResult AspirationRootSearch(GameContext context, int depth, long prevValue)
@@ -258,18 +261,10 @@ private SearchResult AspirationRootSearch(GameContext context, int depth, long p
         _suppressTTStore = true;
         var result = RootSearch(context, depth, alpha, beta);
 
-        if (result.Value <= initialAlpha)
+        if (result.Value <= initialAlpha || result.Value >= initialBeta)
         {
-            // fail-low: 指数拡張（2^(retryCount+1) 倍）
-            long expansionFactor = 1L << (retryCount + 1);
-            delta = ClampDelta(delta, expansionFactor);
-            retryCount++;
-        }
-        else if (result.Value >= initialBeta)
-        {
-            // fail-high: 指数拡張（2^(retryCount+1) 倍）
-            long expansionFactor = 1L << (retryCount + 1);
-            delta = ClampDelta(delta, expansionFactor);
+            // fail-low または fail-high: delta を拡張して再探索
+            delta = ExpandDelta(delta, retryCount, useExponentialExpansion: true);
             retryCount++;
         }
         else
@@ -284,14 +279,39 @@ private SearchResult AspirationRootSearch(GameContext context, int depth, long p
 }
 
 /// <summary>
+/// delta の拡張を行う。指数拡張と固定 2 倍拡張を切り替え可能。
+/// fail-low / fail-high の両方から共通で呼び出される。
+/// </summary>
+/// <param name="delta">現在の delta</param>
+/// <param name="retryCount">現在の retry 回数（0 始まり）</param>
+/// <param name="useExponentialExpansion">指数拡張を使用するかどうか</param>
+/// <returns>拡張後の delta</returns>
+private static long ExpandDelta(long delta, int retryCount, bool useExponentialExpansion)
+{
+    if (useExponentialExpansion)
+    {
+        // 指数拡張（2^(retryCount+1) 倍）
+        long expansionFactor = 1L << (retryCount + 1);
+        return ClampDelta(delta, expansionFactor);
+    }
+    else
+    {
+        // 固定 2 倍拡張（従来動作）
+        return Math.Min(delta * 2, MaxDelta);
+    }
+}
+
+/// <summary>
 /// delta に拡張倍率を適用し、オーバーフロー防止のためクランプする。
 /// 乗算前にオーバーフローチェックを行い、オーバーフローする場合は MaxDelta を返す。
 /// </summary>
 /// <param name="delta">現在の delta</param>
-/// <param name="factor">拡張倍率</param>
+/// <param name="factor">拡張倍率（1 以上であること）</param>
 /// <returns>クランプ後の delta</returns>
 private static long ClampDelta(long delta, long factor)
 {
+    Debug.Assert(factor > 0, "factor must be positive to avoid division by zero");
+
     // オーバーフロー防止: delta * factor が long.MaxValue を超える場合は MaxDelta を返す
     if (delta > MaxDelta / factor)
     {
@@ -427,7 +447,7 @@ public class SearchOptions
 
 ### 5.7 PvsSearchEngine の変更
 
-`AspirationRootSearch()` の delta 取得ロジックと拡張戦略を以下のように変更する。`AspirationUseStageTable` フラグにより、delta 初期値（ステージ別テーブル vs 固定値）と拡張戦略（指数拡張 vs 固定 2 倍拡張）の両方を切り替える。
+`AspirationRootSearch()` の delta 取得ロジックと拡張戦略を以下のように変更する。`AspirationUseStageTable` フラグにより、delta 初期値（ステージ別テーブル vs 固定値）と拡張戦略（指数拡張 vs 固定 2 倍拡張）の両方を切り替える。fail-low と fail-high の拡張ロジックは同一であるため、`ExpandDelta` メソッドに抽出して重複を排除する。
 
 ```csharp
 private SearchResult AspirationRootSearch(GameContext context, int depth, long prevValue)
@@ -460,37 +480,10 @@ private SearchResult AspirationRootSearch(GameContext context, int depth, long p
         _suppressTTStore = true;
         var result = RootSearch(context, depth, alpha, beta);
 
-        if (result.Value <= initialAlpha)
+        if (result.Value <= initialAlpha || result.Value >= initialBeta)
         {
-            // fail-low
-            if (useExponentialExpansion)
-            {
-                // 指数拡張（2^(retryCount+1) 倍）
-                long expansionFactor = 1L << (retryCount + 1);
-                delta = ClampDelta(delta, expansionFactor);
-            }
-            else
-            {
-                // 固定 2 倍拡張（従来動作）
-                delta = Math.Min(delta * 2, MaxDelta);
-            }
-            retryCount++;
-            _aspirationRetryCount++;
-        }
-        else if (result.Value >= initialBeta)
-        {
-            // fail-high
-            if (useExponentialExpansion)
-            {
-                // 指数拡張（2^(retryCount+1) 倍）
-                long expansionFactor = 1L << (retryCount + 1);
-                delta = ClampDelta(delta, expansionFactor);
-            }
-            else
-            {
-                // 固定 2 倍拡張（従来動作）
-                delta = Math.Min(delta * 2, MaxDelta);
-            }
+            // fail-low または fail-high: delta を拡張して再探索
+            delta = ExpandDelta(delta, retryCount, useExponentialExpansion);
             retryCount++;
             _aspirationRetryCount++;
         }
@@ -541,7 +534,7 @@ public PvsSearchEngine(
 |---------|---------|
 | `Reluca/Search/AspirationParameterTable.cs` | **新規作成** - ステージ別 delta テーブル（`long[]` 配列）、深さ補正メソッド（整数演算）、オーバーフロー安全な delta クランプ |
 | `Reluca/Search/SearchOptions.cs` | `AspirationUseStageTable` プロパティ追加 |
-| `Reluca/Search/PvsSearchEngine.cs` | `AspirationRootSearch()` の delta 取得ロジック変更、指数拡張戦略の導入（フラグ制御）、retry 計測フィールド追加（リセット位置修正）、ログ出力拡張、`ClampDelta` メソッド追加 |
+| `Reluca/Search/PvsSearchEngine.cs` | `AspirationRootSearch()` の delta 取得ロジック変更、指数拡張戦略の導入（フラグ制御）、`ExpandDelta` メソッドによる fail-low/fail-high 拡張ロジックの共通化、retry 計測フィールド追加（リセット位置修正）、ログ出力拡張、`ClampDelta` メソッド追加（`Debug.Assert` によるゼロ除算防御付き） |
 | `Reluca/Di/DiProvider.cs` | `AspirationParameterTable` の DI 登録 |
 
 ## 6. 代替案の検討 (Alternatives Considered)
@@ -596,7 +589,7 @@ public PvsSearchEngine(
 - 深さ補正の計算は整数比較 2 回と整数乗算・除算のみであり、コストは無視できる。
 - 指数拡張戦略のコストは `1L << (retryCount + 1)` のビットシフト 1 回であり、無視できる。
 - retry 計測フィールド（`_aspirationRetryCount`, `_aspirationFallbackCount`）は整数インクリメントのみであり、パフォーマンスへの影響はない。
-- MPC との相互作用: MPC ON 時は浅い探索で枝刈りが発生するため、反復間の評価値の安定性が変化する可能性がある。MPC は評価値を安定化させる方向に作用する（不正確な評価値を持つサブツリーが枝刈りされるため）と仮定する。この仮定が正しければ、MPC ON 時は retry 発生率が低下し、delta を縮小する余地が生まれる。delta の最適値は MPC ON/OFF で異なる可能性があるため、両条件下でベンチマークを実施し、この仮説を検証する。
+- MPC との相互作用: MPC ON 時は浅い探索で枝刈りが発生するため、反復間の評価値の安定性が変化する可能性がある。MPC は評価値を安定化させる方向に作用する（不正確な評価値を持つサブツリーが枝刈りされるため）と仮定する。この仮定が正しければ、MPC ON 時は retry 発生率が低下し、delta を縮小する余地が生まれる。delta の最適値は MPC ON/OFF で異なる可能性があるため、両条件下でベンチマークを実施し、この仮説を検証する。仮説が棄却された場合（MPC ON 時に retry 発生率が悪化した場合）の対応方針は、Section 9 の撤退基準に定義する。
 
 ### 7.2 可観測性 (Observability)
 
@@ -625,7 +618,10 @@ public PvsSearchEngine(
 | 指数拡張戦略の動作 | fail 発生時に delta が指数的に拡張されること（`AspirationUseStageTable = true` のみ） | ユニット |
 | 固定 2 倍拡張の維持 | `AspirationUseStageTable = false` 時に fail 発生時の拡張が従来の 2 倍であること | ユニット |
 | retry カウンタの正確性 | retry 発生時にカウンタがインクリメントされること | ユニット |
+| ExpandDelta の指数拡張 | `ExpandDelta(delta, 0, true)` で delta * 2、`ExpandDelta(delta, 1, true)` で delta * 4 が返されること | ユニット |
+| ExpandDelta の固定 2 倍拡張 | `ExpandDelta(delta, retryCount, false)` で常に delta * 2 が返されること | ユニット |
 | ClampDelta のオーバーフロー安全性 | `ClampDelta(long.MaxValue / 2, 4)` が MaxDelta を超えないこと | ユニット |
+| ClampDelta のゼロ除算防御 | `ClampDelta(delta, 0)` で `Debug.Assert` が発火すること（デバッグビルド） | ユニット |
 
 ### 統合テスト
 
@@ -670,6 +666,7 @@ public PvsSearchEngine(
 - 現行パラメータ（delta = 50 固定、固定 2 倍拡張）での retry 発生率・フォールバック率・反復間評価値変動幅を計測する
 - 序盤・中盤・終盤の代表局面（各 3 局面以上）を対象とする
 - 計測結果をフェーズ 1 のステージ別 delta 初期値の設定根拠とする
+- **フェーズ 0 完了後、計測結果を Section 5.1.4 に追記し、ステージ別 delta 初期値を確定させてからフェーズ 1 に進むこと。** RFC の更新を経ることで、delta 初期値の妥当性がレビュー可能な状態で記録される
 
 ### フェーズ 1: データモデルの実装
 
@@ -705,8 +702,9 @@ public PvsSearchEngine(
 | NodesSearched が全ステージで悪化（改善なし） | ステージ別 delta をベースライン計測値に基づいて再調整する。再調整後も改善が得られない場合は、`AspirationUseStageTable = false` に全面リバートし、RFC を中止する |
 | 指数拡張戦略により NodesSearched が悪化するが、ステージ別 delta 自体には改善効果がある | 指数拡張戦略のみ無効化し（`useExponentialExpansion = false` を強制）、ステージ別 delta + 固定 2 倍拡張の組み合わせで再検証する |
 | 着手一致率が 80% 未満に低下 | 着手品質の劣化が許容範囲を超えているため、即座に `AspirationUseStageTable = false` にリバートする |
+| MPC ON 時に retry 発生率が MPC OFF 時より悪化 | MPC ON 専用の delta テーブル（MPC による評価値変動特性を反映した値）を検討する。delta テーブルの分離で改善が得られない場合は、MPC ON 時に限り `AspirationUseStageTable = false` に設定し、MPC OFF 時のみステージ別テーブルを使用する |
 
-全面リバートの場合、`AspirationUseStageTable = false` がデフォルトであるため、コードの削除は不要であり、フラグを OFF にするだけで従来動作に戻る。
+全面リバートの場合、`AspirationUseStageTable = false` がデフォルトであるため、コードの削除は不要であり、フラグを OFF にするだけで従来動作に戻る。ただし、全面リバートから 2 スプリント以内に、不要となった `AspirationParameterTable` クラス、DI 登録、`PvsSearchEngine` の `_aspirationParameterTable` フィールド等のデッドコード除去を検討すること。デッドコードの長期残存はコードの可読性・保守性に影響するためである。
 
 ### リスク軽減策
 
