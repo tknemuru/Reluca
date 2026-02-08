@@ -1,6 +1,5 @@
 ﻿using Reluca.Accessors;
 using Reluca.Analyzers;
-using Reluca.Cachers;
 using Reluca.Contexts;
 using Reluca.Converters;
 using Reluca.Di;
@@ -32,11 +31,6 @@ namespace Reluca.Tools
         /// 統計情報
         /// </summary>
         private static readonly Dictionary<int, ulong> StatisticsInfo = new Dictionary<int, ulong>();
-
-        /// <summary>
-        /// 着手可能情報のキャッシュ機能
-        /// </summary>
-        private static readonly MobilityCacher? MobilityCacher = DiProvider.Get().GetService<MobilityCacher>();
 
         /// <summary>
         /// 着手可能数分析機能
@@ -132,16 +126,11 @@ namespace Reluca.Tools
         /// <summary>
         /// 全てのリーフを取得する
         /// </summary>
-        /// <returns></returns>
+        /// <param name="context">ゲームコンテキスト</param>
+        /// <returns>着手可能なインデックスの列挙</returns>
         private IEnumerable<int> GetAllLeaf(GameContext context)
         {
-            if (MobilityCacher.TryGet(context, out var cLeafs))
-            {
-                return cLeafs;
-            }
-            var leafs = MobilityAnalyzer.Analyze(context);
-            MobilityCacher.Add(context, leafs);
-            return leafs;
+            return MobilityAnalyzer.Analyze(context);
         }
     }
 }

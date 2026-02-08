@@ -31,6 +31,11 @@ namespace Reluca.Evaluates
         private static Dictionary<int, Dictionary<FeaturePattern.Type, Dictionary<int, long>>>? EvaluatedValues;
 
         /// <summary>
+        /// 評価値読み込みの排他制御用ロックオブジェクト
+        /// </summary>
+        private static readonly object LoadValuesLock = new();
+
+        /// <summary>
         /// 特徴パターン抽出機能
         /// </summary>
         private FeaturePatternExtractor? Extractor {  get; set; }
@@ -141,24 +146,34 @@ namespace Reluca.Evaluates
                 return;
             }
 
-            var csv = GetResource(stage);
-            var keyValues = csv.Split(',');
-            var length = keyValues.Length;
-            Debug.Assert((length % 2 == 0), "要素数が奇数です。");
-
-            EvaluatedValues[stage] = new Dictionary<FeaturePattern.Type, Dictionary<int, long>>();
-            for (int i = 0; i < length; i += 2)
+            lock (LoadValuesLock)
             {
-                var indexAndType = keyValues[i].Split(KeyDigitSeparator);
-                Debug.Assert(indexAndType.Length == 2, "要素数が不正です。");
-                var index = int.Parse(indexAndType[0]);
-                var type = FeaturePattern.GetType(indexAndType[1]);
-                var eval = long.Parse(keyValues[i + 1]);
-                if (!EvaluatedValues[stage].ContainsKey(type))
+                // ダブルチェックロッキング: ロック取得後に再確認
+                if (EvaluatedValues.ContainsKey(stage))
                 {
-                    EvaluatedValues[stage][type] = new Dictionary<int, long>();
+                    return;
                 }
-                EvaluatedValues[stage][type][index] = eval;
+
+                var csv = GetResource(stage);
+                var keyValues = csv.Split(',');
+                var length = keyValues.Length;
+                Debug.Assert((length % 2 == 0), "要素数が奇数です。");
+
+                var stageValues = new Dictionary<FeaturePattern.Type, Dictionary<int, long>>();
+                for (int i = 0; i < length; i += 2)
+                {
+                    var indexAndType = keyValues[i].Split(KeyDigitSeparator);
+                    Debug.Assert(indexAndType.Length == 2, "要素数が不正です。");
+                    var index = int.Parse(indexAndType[0]);
+                    var type = FeaturePattern.GetType(indexAndType[1]);
+                    var eval = long.Parse(keyValues[i + 1]);
+                    if (!stageValues.ContainsKey(type))
+                    {
+                        stageValues[type] = new Dictionary<int, long>();
+                    }
+                    stageValues[type][index] = eval;
+                }
+                EvaluatedValues[stage] = stageValues;
             }
         }
 
