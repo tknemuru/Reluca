@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 | :--- | :--- |
 | **作成者 (Author)** | AI (Claude) |
-| **ステータス** | Draft (起草中) |
+| **ステータス** | Accepted (承認済) |
 | **作成日** | 2026-02-08 |
 | **タグ** | Search, 中優先度 |
 | **関連リンク** | [WZebra RFC ロードマップ](../../reports/wzebra-rfc-roadmap.md), [RFC 1: nodes-searched-instrumentation](../20260205-nodes-searched-instrumentation/rfc.md), [RFC 2: multi-probcut](../20260206-multi-probcut/rfc.md) |
