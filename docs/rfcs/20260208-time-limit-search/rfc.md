@@ -12,7 +12,7 @@
 
 - PVS 探索エンジンの反復深化ループに時間制御を導入し、指定された制限時間内で最善手を返す機能を実装する。
 - `SearchOptions` に `TimeLimitMs` パラメータを追加し、未指定時は従来通り `MaxDepth` まで探索する後方互換を維持する。
-- 反復深化の各深さ完了時に経過時間を判定し、次の深さの探索を開始するかどうかを制御する。加えて、探索中のノード展開時にも定期的にタイムアウトチェックを行い、探索途中でも中断できるようにする。
+- 反復深化の各深さ完了時に経過時間を判定し、次の深さの探索を開始するかどうかを制御する。加えて、探索中のノード展開時にも定期的にタイムアウトチェックを行い、探索途中でも中断できるようにする。ただし depth=1 の探索中はタイムアウトチェックを無効化し、最低 1 手の保証を確保する。
 - 残り手数に応じた動的な持ち時間配分戦略を実装し、序盤は短く・中盤は長く・終盤は残り時間を使い切る配分を実現する。
 
 ## 2. 背景・動機 (Motivation)
@@ -40,6 +40,7 @@
 - 秒読み（バイヨミ）制への対応。本 RFC ではフィッシャー方式（持ち時間一括）を前提とする
 - `CancellationToken` による外部からの非同期キャンセル機構。本 RFC ではエンジン内部の時間管理のみを実装する
 - 並列探索との統合。時間制御はシングルスレッド前提で設計する
+- 終盤完全読み切りモード（depth=99）への時間制御の適用。終盤モードは反復深化ではなく固定深さでの完全読み切りを行うため、分岐係数に基づくレイヤー 1 の推定が適合しない。終盤モードの時間制御は別途 RFC で扱う
 
 ## 4. 前提条件・依存関係 (Prerequisites & Dependencies)
 
@@ -65,10 +66,11 @@
 │ レイヤー 2: ノード展開時のタイムアウトチェック   │
 │  - 一定ノード数ごとに経過時間を確認             │
 │  - タイムアウト時は例外で探索を中断             │
+│  - depth=1 の探索中は無効化（最低 1 手保証）    │
 └─────────────────────────────────────────────────┘
 ```
 
-レイヤー 1 は「次の深さを探索するかどうか」を判断する粗い粒度の制御である。レイヤー 2 は「現在進行中の探索を途中で打ち切る」ための細かい粒度の制御であり、レイヤー 1 で開始を許可した探索が制限時間を大幅に超過することを防止する。
+レイヤー 1 は「次の深さを探索するかどうか」を判断する粗い粒度の制御である。レイヤー 2 は「現在進行中の探索を途中で打ち切る」ための細かい粒度の制御であり、レイヤー 1 で開始を許可した探索が制限時間を大幅に超過することを防止する。ただし depth=1 の探索中はレイヤー 2 のタイムアウトチェックを無効化し、最低 1 手の探索結果を保証する。
 
 ### 5.2 SearchOptions の拡張
 
@@ -162,7 +164,10 @@ public class SearchResult
 /// <summary>
 /// 探索の制限時間超過時にスローされる例外。
 /// PVS 探索の再帰呼び出しを一括で中断するために使用する。
-/// 通常の例外処理フローとは異なり、探索エンジン内部でのみ catch される。
+/// 本例外は PvsSearchEngine.Search() 内の try-catch で必ず捕捉される。
+/// Search() の外部には伝播しない設計であり、ISearchEngine の利用者が
+/// 本例外を処理する必要はない。コードレビュー時は Search() 内の
+/// catch (SearchTimeoutException) が維持されていることを確認すること。
 /// </summary>
 public class SearchTimeoutException : Exception
 {
@@ -197,6 +202,8 @@ private long? _timeLimitMs;
 /// </summary>
 private const int TimeoutCheckInterval = 4096;
 ```
+
+なお、既存の `_nodesSearched` フィールドは `long` 型（`private long _nodesSearched;`）で定義されており、ビット AND によるタイムアウトチェック条件はオーバーフローの心配なく正常に動作する。
 
 #### 5.5.2 反復深化ループの時間制御（レイヤー 1）
 
@@ -324,17 +331,21 @@ public SearchResult Search(GameContext context, SearchOptions options, IEvaluabl
 }
 ```
 
+**Aspiration Window リトライとの相互作用**: `AspirationRootSearch` 内の while ループ（fail-high/fail-low 時のリトライ）中にレイヤー 2 のタイムアウトが発生した場合、`SearchTimeoutException` は `AspirationRootSearch` を透過して `Search()` メソッドの catch ブロックに到達する。`AspirationRootSearch` 自体には try-catch がないため、例外は自然にスタックを巻き戻す。この場合、Aspiration Window のリトライは中断され、直前の depth（`completedDepth`）の結果が使用される。リトライ中の中間結果は `result` に格納されないため、安全に破棄される。
+
 #### 5.5.3 ノード展開時のタイムアウトチェック（レイヤー 2）
 
-`Pvs()` メソッドにタイムアウトチェックを追加する。全ノードで `Stopwatch` を確認すると性能に影響するため、`TimeoutCheckInterval` ノードごとに確認する。
+`Pvs()` メソッドにタイムアウトチェックを追加する。全ノードで `Stopwatch` を確認すると性能に影響するため、`TimeoutCheckInterval` ノードごとに確認する。depth=1 の探索中はタイムアウトチェックを無効化し、最低 1 手の保証を確保する。
 
 ```csharp
 private long Pvs(GameContext context, int remainingDepth, long alpha, long beta, bool isPassed)
 {
     _nodesSearched++;
 
-    // タイムアウトチェック（一定ノード数ごと）
-    if (_timeLimitMs.HasValue && (_nodesSearched & (TimeoutCheckInterval - 1)) == 0)
+    // タイムアウトチェック（一定ノード数ごと、ただし depth=1 では無効化）
+    if (_currentDepth >= 2
+        && _timeLimitMs.HasValue
+        && (_nodesSearched & (TimeoutCheckInterval - 1)) == 0)
     {
         if (_stopwatch.ElapsedMilliseconds >= _timeLimitMs.Value)
         {
@@ -345,6 +356,8 @@ private long Pvs(GameContext context, int remainingDepth, long alpha, long beta,
     // 以降は既存の処理...
 }
 ```
+
+**depth=1 での無効化の根拠**: Goals に「最低 depth=1 の探索結果が保証される」と記載している。depth=1 の探索は浅く、ノード数も限定的（合法手数の最大約 30 程度）であるため、仮に制限時間を超過しても数ミリ秒程度の追加時間で完了する。`_currentDepth >= 2` の条件を追加することで、depth=1 の探索中は `SearchTimeoutException` がスローされず、`completedDepth = 1` の結果が必ず得られる。
 
 **チェック頻度の設計根拠**: `TimeoutCheckInterval = 4096`（2 のべき乗）とする。ビット AND によるモジュロ演算で高速に判定できる。オセロの探索において 1 ノードあたりの処理時間は概ね 1-10 マイクロ秒程度であるため、4096 ノードごとのチェックは約 4-40ms 間隔となる。制限時間の超過幅は最大で 1 チェック間隔分（約 40ms）に抑えられ、100ms 以内の目標を達成できる。
 
@@ -358,10 +371,13 @@ private long Pvs(GameContext context, int remainingDepth, long alpha, long beta,
 
 ファイル: `Reluca/Search/TimeAllocator.cs`
 
+`TimeAllocator` は状態を持たない純粋な計算クラスであり、すべてのメソッドは入力パラメータのみに基づいて結果を返す。副作用がなくテスト時のモック化も不要であるため、DI コンテナへの登録は行わず、利用側で直接インスタンス化する。
+
 ```csharp
 /// <summary>
 /// 対局全体の持ち時間を各手番に配分する。
 /// 残り手数に応じた動的な配分戦略を実装する。
+/// 状態を持たない純粋な計算クラスである。
 /// </summary>
 public class TimeAllocator
 {
@@ -383,11 +399,16 @@ public class TimeAllocator
     /// <summary>
     /// 残り持ち時間と現在のターン数から、今回の手番に割り当てる制限時間を計算する。
     /// </summary>
-    /// <param name="remainingTimeMs">残り持ち時間（ミリ秒）</param>
+    /// <param name="remainingTimeMs">残り持ち時間（ミリ秒）。0 以下の場合は MinTimeLimitMs を返す</param>
     /// <param name="turnCount">現在のターン数（0〜59）</param>
     /// <returns>今回の手番に割り当てる制限時間（ミリ秒）</returns>
     public long Allocate(long remainingTimeMs, int turnCount)
     {
+        if (remainingTimeMs <= 0)
+        {
+            return MinTimeLimitMs;
+        }
+
         int remainingMoves = EstimateRemainingMoves(turnCount);
 
         if (remainingMoves <= 0)
@@ -412,16 +433,24 @@ public class TimeAllocator
     }
 
     /// <summary>
-    /// 残り手数を推定する。パスによる手数変動を考慮し、やや保守的に推定する。
+    /// 残り手数を推定する。自手番のみをカウントし、パスの影響を考慮して保守的に推定する。
     /// </summary>
+    /// <remarks>
+    /// オセロでは一方がパスすると相手が連続して手番を得るため、自分の実際の手番数は
+    /// 単純な `(残りターン数) / 2` とは異なる場合がある。最悪ケースとして、相手が
+    /// 複数回連続パスすることで自分の手番が増加するシナリオが考えられる。
+    /// ただし連続パスは終盤に集中し、その場合は残りマス数自体が少ないため探索時間への
+    /// 影響は限定的である。本推定式は `(remaining + 1) / 2` により切り上げ方向で
+    /// 推定しており、1 手分の余裕を持たせることでパスによる手番増加に対して安全側に
+    /// 機能する。加えて SafetyMarginRatio（5%）が追加の安全バッファとして作用する。
+    /// </remarks>
     /// <param name="turnCount">現在のターン数</param>
     /// <returns>推定残り手数</returns>
     private static int EstimateRemainingMoves(int turnCount)
     {
         int remaining = MaxTurns - turnCount;
 
-        // 自分の手番のみをカウント（2 で割る）
-        // パスの可能性を考慮し、やや多めに見積もる
+        // 自分の手番のみをカウント（2 で割る、切り上げ）
         return Math.Max((remaining + 1) / 2, 1);
     }
 
@@ -457,13 +486,13 @@ public class TimeAllocator
 
 - **序盤（ターン 0〜15）**: 定石による知識で対応できる局面が多く、深い探索の必要性が相対的に低い。時間を節約し中盤に回す。
 - **中盤（ターン 16〜44）**: 局面の複雑度が最も高く、探索深度が着手品質に直結する。持ち時間の大部分をここに配分する。
-- **終盤（ターン 45〜59）**: `FindBestMover` が depth=99（完全読み切り）に切り替えるため、探索は残り空きマス数に依存する。MPC や置換表の効果で高速に解ける局面が多いが、一部の局面は長時間を要する可能性がある。完全読み切りモードの時間制御については将来の課題とし、本 RFC では通常探索時の配分を実装する。
+- **終盤（ターン 45〜59）**: `FindBestMover` が depth=99（完全読み切り）に切り替えるため、探索は残り空きマス数に依存する。MPC や置換表の効果で高速に解ける局面が多いが、一部の局面は長時間を要する可能性がある。終盤完全読み切りモードへの時間制御適用は Non-Goals に記載の通り本 RFC のスコープ外であり、`FindBestMover` は終盤モードでは `timeLimitMs` を設定しない。
 
 **[仮定]** フェーズ係数（0.8 / 1.3 / 0.9）は初期値であり、実戦対局のログ分析に基づいて調整する。フェーズ境界（ターン 15/44）は `FindBestMover` の `EndgameTurnThreshold = 46` および `Stage` の区分と整合するよう設定した。
 
 #### 5.6.3 FindBestMover との統合
 
-`FindBestMover` が `TimeAllocator` を使用して各手番の制限時間を決定する例を示す。
+`FindBestMover` が `TimeAllocator` を使用して各手番の制限時間を決定する例を示す。終盤完全読み切りモード（`TurnCount >= EndgameTurnThreshold`）では `timeLimitMs` を設定しない。
 
 ```csharp
 public class FindBestMover : IMovable
@@ -486,24 +515,27 @@ public class FindBestMover : IMovable
 
         IEvaluable evaluator;
         int depth;
+        long? timeLimitMs = null;
+
         if (context.TurnCount >= EndgameTurnThreshold)
         {
             evaluator = DiProvider.Get().GetService<DiscCountEvaluator>();
             depth = EndgameDepth;
+            // 終盤完全読み切りモードでは時間制限を適用しない
+            // （Non-Goals に記載の通り、別途 RFC で対応）
         }
         else
         {
             evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
             depth = NormalDepth;
-        }
 
-        // 時間制限の計算
-        long? timeLimitMs = null;
-        if (RemainingTimeMs.HasValue)
-        {
-            _timeAllocator ??= new TimeAllocator();
-            timeLimitMs = _timeAllocator.Allocate(
-                RemainingTimeMs.Value, context.TurnCount);
+            // 通常探索時のみ時間制限を計算
+            if (RemainingTimeMs.HasValue)
+            {
+                _timeAllocator ??= new TimeAllocator();
+                timeLimitMs = _timeAllocator.Allocate(
+                    RemainingTimeMs.Value, context.TurnCount);
+            }
         }
 
         var options = new SearchOptions(
@@ -541,7 +573,7 @@ public class FindBestMover : IMovable
 #### 案A: 例外によるスタック巻き戻し（採用案）
 
 - **概要**: タイムアウト検出時に `SearchTimeoutException` をスローし、再帰呼び出しスタックを一括で巻き戻す。`Search()` メソッドの反復深化ループで catch し、直前の深さの結果を返す。
-- **長所**: 既存の `Pvs()` メソッドの戻り値やロジックを変更する必要がない。再帰の深さに関係なく即座に中断できる。実装がシンプルで、既存コードへの侵襲が最小限である。
+- **長所**: 既存の `Pvs()` メソッドの戻り値やロジックを変更する必要がない。再帰の深さに関係なく即座に中断できる。実装がシンプルで、既存コードへの侵襲が最小限である。Aspiration Window のリトライループ中のタイムアウトも自然に処理される（例外が `AspirationRootSearch` を透過して `Search()` の catch に到達する）。
 - **短所**: 例外のスロー/キャッチにはオーバーヘッドがある。ただし、タイムアウトは 1 回の探索で最大 1 回しか発生しないため、性能への影響は無視できる。
 
 #### 案B: フラグベースの中断
@@ -560,7 +592,7 @@ public class FindBestMover : IMovable
 
 - **概要**: 前回の深さの探索にかかった時間を記録し、次の深さは約 3 倍の時間を要すると推定する。推定時間が残り時間を超える場合は次の深さを開始しない。
 - **長所**: 実装がシンプルで、実測値に基づくため局面の特性が反映される。MPC の枝刈り効果が反映された実時間で判定できる。
-- **短所**: 分岐係数 3 倍の仮定が外れる局面では、残り時間を有効活用できない（過小推定）、または制限時間を超過する（過大推定）可能性がある。ただし、レイヤー 2 のタイムアウトチェックが安全ネットとして機能する。
+- **短所**: 分岐係数 3 倍の仮定が外れる局面では、残り時間を有効活用できない（過小推定）、または制限時間を超過する（過大推定）可能性がある。ただし、レイヤー 2 のタイムアウトチェックが安全ネットとして機能する。MPC 有効時には実効分岐係数が 2 倍程度まで低下する可能性があり、3 倍の推定は保守的（過大推定寄り）になりうる。
 
 #### 案D: NPS ベースの推定
 
@@ -572,7 +604,7 @@ public class FindBestMover : IMovable
 
 案 C を採用する。MPC の存在により次の深さのノード数予測は信頼性が低く、NPS ベースの推定（案 D）は複雑さに見合う精度向上が見込めない。実測時間ベースの推定は MPC の枝刈り効果が自動的に反映されるため、MPC ON/OFF の両方に対応できる。分岐係数 3 倍の仮定はオセロの平均分岐係数（約 10）と Alpha-Beta の理想的枝刈り（分岐係数の平方根）から概ね妥当であるが、レイヤー 2 が安全ネットとなるため、推定の精度が多少低くても問題ない。
 
-**[仮定]** 分岐係数 3 倍は初期値であり、実測データに基づいて調整する。MPC ON 時は実効分岐係数が低下するため、3 倍は保守的（過大推定寄り）である。
+**[仮定]** 分岐係数 3 倍は初期値であり、実測データに基づいて調整する。MPC ON 時は実効分岐係数が 2 倍程度まで低下する可能性があるため、3 倍は保守的（過大推定寄り）である。将来的に MPC ON/OFF で推定係数を切り替える拡張も検討しうるが、レイヤー 2 の安全ネットがあるため、初期実装では固定値で十分と判断する。
 
 ## 7. 横断的関心事 (Cross-Cutting Concerns)
 
@@ -605,12 +637,14 @@ public class FindBestMover : IMovable
 | 時間制限なしの非干渉 | `TimeLimitMs = null` 時の `BestMove` と `Value` が従来と一致すること | ユニット |
 | 時間制限内の完了 | `TimeLimitMs` を十分に大きく設定した場合、`MaxDepth` まで探索が完了すること | ユニット |
 | 時間制限による打ち切り | `TimeLimitMs` を短く設定した場合、制限時間付近で探索が中断し、有効な着手が返されること | ユニット |
-| 最低 1 手の保証 | `TimeLimitMs` を極端に短く設定（例: 1ms）した場合でも、depth=1 の結果が返されること | ユニット |
+| 最低 1 手の保証 | `TimeLimitMs` を極端に短く設定（例: 1ms）した場合でも、depth=1 の結果が返されること（`BestMove != -1`） | ユニット |
 | CompletedDepth の正確性 | 時間制限で打ち切られた場合、`CompletedDepth` が実際に完了した深さを正しく報告すること | ユニット |
 | TimeAllocator の配分 | 各ターン数で `Allocate()` が妥当な制限時間を返すこと | ユニット |
 | TimeAllocator の最低保証 | 残り時間が極小の場合でも `MinTimeLimitMs` 以上が返されること | ユニット |
+| TimeAllocator の不正入力 | 残り時間が 0 以下の場合に `MinTimeLimitMs` が返されること | ユニット |
 | TimeAllocator のフェーズ係数 | 序盤・中盤・終盤で異なる配分比率が適用されること | ユニット |
 | SearchTimeoutException の中断 | 探索途中でタイムアウトが発生した場合、直前の深さの結果が使用されること | ユニット |
+| Aspiration Window リトライ中の中断 | Aspiration Window のリトライ中にタイムアウトが発生した場合、直前の depth の結果が使用されること | ユニット |
 
 ### 統合テスト
 
@@ -618,7 +652,8 @@ public class FindBestMover : IMovable
 |-----------|------|
 | 制限時間の遵守 | 複数の局面で `TimeLimitMs` を設定し、実際の経過時間が制限時間の 1.1 倍以内に収まること |
 | MPC + 時間制御の組み合わせ | MPC ON + 時間制限ありの状態で、正しく動作すること |
-| FindBestMover との統合 | `RemainingTimeMs` を設定した `FindBestMover` が、時間制限付きで最善手を返すこと |
+| FindBestMover との統合 | `RemainingTimeMs` を設定した `FindBestMover` が、通常探索モードで時間制限付きの最善手を返すこと |
+| 終盤モードの非干渉 | `TurnCount >= EndgameTurnThreshold` の場合に `timeLimitMs` が設定されず、完全読み切りが通常通り動作すること |
 
 ### 検証方法
 
@@ -639,20 +674,20 @@ public class FindBestMover : IMovable
 
 - `PvsSearchEngine` に `Stopwatch`, `_timeLimitMs`, `TimeoutCheckInterval` を追加する
 - レイヤー 1（反復深化ループの制御）を実装する
-- レイヤー 2（ノード展開時のタイムアウトチェック）を実装する
-- ユニットテスト: 時間制限なしの非干渉、時間制限による打ち切り、最低 1 手の保証
+- レイヤー 2（ノード展開時のタイムアウトチェック）を実装する。depth=1 ではレイヤー 2 を無効化する
+- ユニットテスト: 時間制限なしの非干渉、時間制限による打ち切り、最低 1 手の保証、Aspiration Window リトライ中の中断
 
 ### フェーズ 3: TimeAllocator の実装
 
 - `TimeAllocator` クラスを新規作成する
-- `FindBestMover` に `RemainingTimeMs` プロパティと `TimeAllocator` 統合を追加する
-- ユニットテスト: 配分計算の検証、最低保証時間、フェーズ係数
+- `FindBestMover` に `RemainingTimeMs` プロパティと `TimeAllocator` 統合を追加する。終盤完全読み切りモードでは `timeLimitMs` を設定しないことを確認する
+- ユニットテスト: 配分計算の検証、最低保証時間、フェーズ係数、不正入力（0 以下の残り時間）
 
 ### フェーズ 4: 統合検証とパラメータ調整
 
 - 複数の局面で時間制御の動作を検証し、制限時間の遵守を確認する
 - `TimeoutCheckInterval` の妥当性を実測で検証し、必要に応じて調整する
-- 分岐係数推定値（3 倍）の妥当性を実測で検証し、必要に応じて調整する
+- 分岐係数推定値（3 倍）の妥当性を実測で検証し、必要に応じて調整する。MPC ON 時の実効分岐係数を計測し、2 倍程度まで低下していれば推定係数の動的切替を検討する
 - フェーズ係数（0.8 / 1.3 / 0.9）の妥当性を対局ログで検証し、必要に応じて調整する
 
 ### リスク軽減策
