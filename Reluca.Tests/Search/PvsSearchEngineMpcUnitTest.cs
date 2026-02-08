@@ -157,10 +157,8 @@ namespace Reluca.Tests.Search
             Console.WriteLine($"MPC OFF: BestMove={BoardAccessor.ToPosition(resultOff.BestMove)}, Value={resultOff.Value}, Nodes={resultOff.NodesSearched}");
             Console.WriteLine($"MPC ON:  BestMove={BoardAccessor.ToPosition(resultOn.BestMove)}, Value={resultOn.Value}, Nodes={resultOn.NodesSearched}");
 
-            // 注: 深さ 5 では MPC のカットペアの最小条件（remainingDepth >= 6）に
-            // わずかに達するため、MPC が着手品質に影響を与えない（あるいは同一手を返す）ことを確認する。
-            // 深さ 7 の場合、Pair 1 (d=6) のみが適用される可能性がある。
-            // MPC はカットにより探索木を変更するため、完全な一致は保証されないが、
+            // 注: 深さ 5 では MPC のカットペアの最小条件（remainingDepth >= 6）に達しないため、
+            // MPC は適用されず同一手が返される。
             // 両方とも有効な手を返すことを検証する。
             var validMoves = new[] { 19, 26, 37, 44 };
             Assert.IsTrue(validMoves.Contains(resultOff.BestMove),
