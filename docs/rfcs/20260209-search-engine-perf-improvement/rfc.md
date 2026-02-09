@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 | :--- | :--- |
 | **作成者 (Author)** | AI (Claude) |
-| **ステータス** | Draft (起草中) |
+| **ステータス** | Accepted (承認済) |
 | **作成日** | 2026-02-09 |
 | **タグ** | Search, Evaluates, Analyzers, Performance, P0-P1 |
 | **関連リンク** | `docs/reports/20260209-report-search-performance-bottleneck.md` |
