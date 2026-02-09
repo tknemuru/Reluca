@@ -539,8 +539,28 @@ private long Pvs(GameContext context, int remainingDepth, long alpha, long beta,
             long score;
             try
             {
-                score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false, childHash);
-                // Null Window Search の再探索でも childHash を再利用（同一の子ノードのため）
+                if (isFirstMove)
+                {
+                    // 最初の手: フルウィンドウで探索
+                    score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false, childHash);
+                    isFirstMove = false;
+                }
+                else
+                {
+                    // 2手目以降: Null Window Search
+                    score = -Pvs(context, remainingDepth - 1, -alpha - 1, -alpha, false, childHash);
+                    if (score > alpha && score < beta)
+                    {
+                        // fail-high: フルウィンドウで再探索
+                        // childHash の再利用根拠:
+                        // NWS 再探索は MakeMove を再実行しない。現行の PvsSearchEngine.Pvs の
+                        // 実装では、MakeMove は foreach ループの先頭で 1 回のみ実行され（try ブロック外）、
+                        // NWS → fail-high → フルウィンドウ再探索の一連のフローは同一の try ブロック内で
+                        // 完結する。盤面状態は MakeMove 実行後から変化しないため、childHash は
+                        // フルウィンドウ再探索でもそのまま有効である。
+                        score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false, childHash);
+                    }
+                }
             }
             finally
             {
@@ -835,7 +855,17 @@ for (int i = info.PatternChangeCount - 1; i >= 0; i--)
 }
 ```
 
-`PatternIndexChange[]` バッファは `PvsSearchEngine` のフィールドとして 1 つ事前確保し、`MoveInfo` からは参照で共有する。探索はシングルスレッドであり、再帰呼び出しの各レベルで MakeMove → Pvs → UnmakeMove が必ず順序通りに実行されるため、バッファの競合は発生しない。ただし、再帰のネスト（最大探索深さ分）を考慮して、探索深さごとにバッファを分離するか、各 MoveInfo が変更記録の開始オフセットを保持する方式とする。具体的には、単一の大きな配列（`PatternIndexChange[MaxDepth * MaxChangesPerMove]`）を確保し、`MoveInfo` には開始オフセットと件数を保持する。
+`PatternIndexChange[]` バッファは `PvsSearchEngine` のフィールドとして 1 つ事前確保し、`MoveInfo` からは参照で共有する。探索はシングルスレッドであり、再帰呼び出しの各レベルで MakeMove → Pvs → UnmakeMove が必ず順序通りに実行されるため、バッファの競合は発生しない。ただし、再帰のネスト（最大探索深さ分）を考慮して、各 MoveInfo が変更記録の開始オフセットを保持する方式とする。具体的には、単一の大きな配列（`PatternIndexChange[MaxDepth * MaxChangesPerMove]`）を確保し、`MoveInfo` には開始オフセットと件数を保持する。
+
+**バッファサイズの具体値:**
+
+| 定数 | 値 | 根拠 |
+|------|-----|------|
+| `MaxDepth` | 64 | オセロの最大手数は 60 手（初期 4 石 + 60 手 = 64 マス）であるが、パスを含む探索パスを考慮して 64 とする。現行の `PvsSearchEngine` の反復深化でも `options.MaxDepth` は 64 以下を想定している。 |
+| `MaxChangesPerMove` | 128 | 1 手あたりの変化マス数は最大 11（着手 1 + 裏返し最大 10）であり、各マスが影響するパターン数は最大 8 個程度である。したがって 1 手あたりの最大パターン変更数は 11 × 8 = 88 であるが、安全マージンとして 2 のべき乗で切り上げた 128 とする。 |
+| 合計バッファサイズ | 8,192 エントリ | `64 * 128 = 8,192`。`PatternIndexChange` は `FeaturePattern.Type`（enum: 4 bytes）+ `int SubPatternIndex`（4 bytes）+ `int PrevIndex`（4 bytes）= 12 bytes/エントリであり、合計 8,192 × 12 = 約 96 KB である。探索エンジンのインスタンスあたり 1 回のみ確保するため、メモリ使用量は無視できる水準である。 |
+
+バッファオーバーフロー防止のため、`MakeMove` 内で開始オフセット + 変更件数が合計バッファサイズを超えないことをデバッグアサーションで検証する。
 
 **[仮定]** 差分更新の正しさは「差分更新後のインデックス = フルスキャンによるインデックス」で検証できる。デバッグビルドでは差分更新後にフルスキャンの結果と照合するアサーションを挿入し、開発中のバグを早期に検出する。
 
