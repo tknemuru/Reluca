@@ -90,9 +90,9 @@ namespace Reluca.Evaluates
             var eval = 0L;
             var parity = GetParity(context);
 
-            // 着手可能数
-            var black = MobilityAnalyzer.Analyze(context, Disc.Color.Black).Count;
-            var white = MobilityAnalyzer.Analyze(context, Disc.Color.White).Count;
+            // 着手可能数（カウントのみでリストのアロケーションを回避）
+            var black = MobilityAnalyzer.AnalyzeCount(context, Disc.Color.Black);
+            var white = MobilityAnalyzer.AnalyzeCount(context, Disc.Color.White);
             var mobility = black - white;
             eval += EvaluatedValues[context.Stage][FeaturePattern.Type.Mobility][0] * mobility;
 
@@ -113,12 +113,14 @@ namespace Reluca.Evaluates
                 return 0;
             }
 
-            // パターンによる評価値
-            var patterns = Extractor.Extract(context.Board);
+            // パターンによる評価値（アロケーションなし版を使用）
+            var patterns = Extractor.ExtractNoAlloc(context.Board);
             foreach (var pattern in patterns)
             {
-                foreach (var index in pattern.Value)
+                var indices = pattern.Value;
+                for (int i = 0; i < indices.Length; i++)
                 {
+                    var index = indices[i];
                     // 正規化した特徴パターンで評価値を取得する
                     if (EvaluatedValues[context.Stage][pattern.Key].TryGetValue(FeatureNormalizer.Normalize(pattern.Key, index), out long value))
                     {

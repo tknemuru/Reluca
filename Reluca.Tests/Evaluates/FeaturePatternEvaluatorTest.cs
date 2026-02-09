@@ -10,7 +10,12 @@ using System.Threading.Tasks;
 namespace Reluca.Tests.Evaluates
 {
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
+    /// <summary>
+    /// FeaturePatternEvaluator の単体テストクラスです。
+    /// ExtractNoAlloc のシングルスレッド前提の内部バッファを使用するため、並列実行を無効化します。
+    /// </summary>
     [TestClass]
+    [DoNotParallelize]
     public class FeaturePatternEvaluatorTest : BaseUnitTest<FeaturePatternEvaluator>
     {
         [TestMethod]
