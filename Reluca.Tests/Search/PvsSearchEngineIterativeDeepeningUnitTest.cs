@@ -22,8 +22,10 @@ namespace Reluca.Tests.Search
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
     /// <summary>
     /// PvsSearchEngine の反復深化（Iterative Deepening）テストクラスです。
+    /// ExtractNoAlloc のシングルスレッド前提の内部バッファを使用するため、並列実行を無効化します。
     /// </summary>
     [TestClass]
+    [DoNotParallelize]
     public class PvsSearchEngineIterativeDeepeningUnitTest
     {
         /// <summary>

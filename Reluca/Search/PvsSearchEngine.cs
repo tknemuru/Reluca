@@ -10,6 +10,8 @@
 /// - TT 統合は SearchOptions.UseTranspositionTable で切替可能
 /// - 反復深化（Iterative Deepening）により depth=1..MaxDepth を順次探索
 /// - TT Clear は Search セッション冒頭で1回のみ（反復ごとの Clear は禁止）
+/// - MakeMove/UnmakeMove パターンにより盤面を in-place で変更・復元し、ヒープアロケーションを排除
+/// - シングルスレッド前提で設計されている
 ///
 /// RootSearch の責務:
 /// - ルート局面の合法手列挙と手順序の最適化
@@ -25,8 +27,14 @@
 /// - 再探索回数超過時はフルウィンドウにフォールバック（正しさ担保）
 /// - fail-low/high 判定は初期窓境界（initialAlpha/initialBeta）で行う
 /// - δ 拡大時はオーバーフロー防止のため MaxDelta で clamp
-/// - retry 中は TT Store を抑制し、最終確定時のみ Store を許可（TT Clear 不要）
+/// - TT Store を有効にして探索し、1回の RootSearch で完結する
 /// - retry 発生回数とフォールバック回数を計測し、ログ出力する
+///
+/// Null Window Search (NWS) の責務:
+/// - 最初の手（Principal Variation）のみフルウィンドウで探索
+/// - 2 手目以降は Null Window (-alpha-1, -alpha) で探索
+/// - fail-high 時のみフルウィンドウで再探索
+/// - Move Ordering が適切であれば、大半の手は NWS で枝刈りされる
 ///
 /// Multi-ProbCut (MPC) の責務:
 /// - 浅い探索の評価値から深い探索の結果を統計的に予測し、枝刈りを行う
@@ -40,6 +48,10 @@
 /// - レイヤー 2: ノード展開時に一定間隔でタイムアウトチェックを行い、SearchTimeoutException で中断
 /// - depth=1 の探索中はレイヤー 2 を無効化し、最低 1 手の探索結果を保証
 /// - TimeLimitMs 未指定時はタイムアウトチェックが無効化され、従来動作と同一
+///
+/// フェイルセーフ設計:
+/// - MakeMove/UnmakeMove ペアは try/finally で囲み、例外発生時にも必ず UnmakeMove を実行
+/// - Search メソッドでルート盤面をバックアップし、SearchTimeoutException 発生後に復元
 /// </summary>
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -59,6 +71,7 @@ namespace Reluca.Search
     /// NegaScout とも呼ばれ、最初の手をフルウィンドウで探索し、
     /// 2手目以降は Null Window Search で枝刈りを試みます。
     /// 反復深化（Iterative Deepening）により効率的な探索を実現します。
+    /// MakeMove/UnmakeMove パターンにより、探索中のヒープアロケーションを排除します。
     /// </summary>
     public class PvsSearchEngine : ISearchEngine
     {
@@ -180,6 +193,48 @@ namespace Reluca.Search
         private long? _timeLimitMs;
 
         /// <summary>
+        /// 着手情報を保持する構造体。スタック上に配置され、ヒープアロケーションは発生しない。
+        /// MakeMove で着手前の状態を保存し、UnmakeMove で復元する際に使用する。
+        /// </summary>
+        private struct MoveInfo
+        {
+            /// <summary>
+            /// 着手前の黒石配置
+            /// </summary>
+            public ulong PrevBlack;
+
+            /// <summary>
+            /// 着手前の白石配置
+            /// </summary>
+            public ulong PrevWhite;
+
+            /// <summary>
+            /// 着手前の手番
+            /// </summary>
+            public Disc.Color PrevTurn;
+
+            /// <summary>
+            /// 着手前のターン数
+            /// </summary>
+            public int PrevTurnCount;
+
+            /// <summary>
+            /// 着手前のステージ
+            /// </summary>
+            public int PrevStage;
+
+            /// <summary>
+            /// 着手前の指し手
+            /// </summary>
+            public int PrevMove;
+
+            /// <summary>
+            /// 着手前の配置可能状態
+            /// </summary>
+            public ulong PrevMobility;
+        }
+
+        /// <summary>
         /// コンストラクタ。DI から依存を注入します。
         /// </summary>
         /// <param name="logger">ロガー</param>
@@ -212,6 +267,8 @@ namespace Reluca.Search
         /// 指定されたゲーム状態から最善手を探索します。
         /// 反復深化（Iterative Deepening）により depth=1 から MaxDepth まで順次探索します。
         /// Aspiration Window 有効時は depth >= 2 で狭い窓から探索を開始します。
+        /// MakeMove/UnmakeMove パターンにより盤面を in-place で変更するため、
+        /// SearchTimeoutException 発生時にはルート盤面のバックアップから復元します。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <param name="options">探索オプション</param>
@@ -224,6 +281,18 @@ namespace Reluca.Search
             _options = options;
             _mpcEnabled = options.UseMultiProbCut;
             _timeLimitMs = options.TimeLimitMs;
+
+            // ルート盤面のバックアップ（SearchTimeoutException 発生時の復元用）
+            var rootBackup = new MoveInfo
+            {
+                PrevBlack = context.Black,
+                PrevWhite = context.White,
+                PrevTurn = context.Turn,
+                PrevTurnCount = context.TurnCount,
+                PrevStage = context.Stage,
+                PrevMove = context.Move,
+                PrevMobility = context.Mobility,
+            };
 
             // ストップウォッチ開始
             _stopwatch.Restart();
@@ -298,6 +367,9 @@ namespace Reluca.Search
                 catch (SearchTimeoutException)
                 {
                     // レイヤー 2: 探索途中でタイムアウト
+                    // ルート盤面を復元（MakeMove/UnmakeMove の途中で例外が発生した可能性がある）
+                    RestoreContext(context, rootBackup);
+
                     // 直前の深さの結果を返す（result は更新しない）
                     // タイムアウト発生時の深さで探索されたノード数も集計に含める
                     totalNodesSearched += _nodesSearched;
@@ -345,7 +417,9 @@ namespace Reluca.Search
         /// <summary>
         /// Aspiration Window を使用したルート探索を行います。
         /// 前回反復の評価値を中心に狭い窓で探索し、fail-low/high 時は窓を広げて再探索します。
-        /// retry 中は TT への書き込みを抑制し、最終確定時のみ Store を許可します。
+        /// TT Store を有効にして 1 回の RootSearch で完結させます。
+        /// fail 時に書き込まれた TT エントリは BoundType により適切にフィルタリングされるため、
+        /// TT Store を抑制する必要はありません。
         /// AspirationUseStageTable = true の場合、ステージ別 delta テーブルと指数拡張戦略を使用します。
         /// AspirationUseStageTable = false の場合、固定 delta と固定 2 倍拡張を使用します（従来動作）。
         /// </summary>
@@ -382,8 +456,8 @@ namespace Reluca.Search
                 long alpha = Math.Max(initialAlpha, DefaultAlpha);
                 long beta = Math.Min(initialBeta, DefaultBeta);
 
-                // retry 中は TT Store を抑制
-                _suppressTTStore = true;
+                // TT Store を有効にして探索（1回のみ）
+                _suppressTTStore = false;
                 var result = RootSearch(context, depth, alpha, beta);
 
                 // fail-low/high 判定は初期窓境界で行う
@@ -396,9 +470,8 @@ namespace Reluca.Search
                 }
                 else
                 {
-                    // 成功: 窓内に収まった → TT Store を許可して再探索
-                    _suppressTTStore = false;
-                    return RootSearch(context, depth, alpha, beta);
+                    // 成功: 結果をそのまま返す（TT Store は RootSearch 内で完了済み）
+                    return result;
                 }
             }
 
@@ -453,6 +526,7 @@ namespace Reluca.Search
         /// <summary>
         /// ルート局面での探索を行います。
         /// 手順序の最適化と bestMove の更新を一元管理します。
+        /// MakeMove/UnmakeMove パターンにより盤面を in-place で変更・復元します。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <param name="depth">探索深さ</param>
@@ -485,12 +559,19 @@ namespace Reluca.Search
 
             foreach (var move in moves)
             {
-                var child = MakeMove(context, move);
-
-                // 再帰探索
-                // depth=1 の時 remainingDepth=0 で即評価
-                // depth=N の時 remainingDepth=N-1 で (N-1) レベル探索
-                long score = -Pvs(child, depth - 1, -beta, -alpha, false);
+                var moveInfo = MakeMove(context, move);
+                long score;
+                try
+                {
+                    // 再帰探索
+                    // depth=1 の時 remainingDepth=0 で即評価
+                    // depth=N の時 remainingDepth=N-1 で (N-1) レベル探索
+                    score = -Pvs(context, depth - 1, -beta, -alpha, false);
+                }
+                finally
+                {
+                    UnmakeMove(context, moveInfo);
+                }
 
                 if (score > maxValue)
                 {
@@ -568,6 +649,8 @@ namespace Reluca.Search
         /// <summary>
         /// PVS（Principal Variation Search）の再帰探索メソッドです。
         /// ルート以外のノードで使用します。
+        /// 最初の手をフルウィンドウで探索し、2 手目以降は Null Window Search で枝刈りを試みます。
+        /// MakeMove/UnmakeMove パターンにより盤面を in-place で変更・復元します。
         /// </summary>
         /// <param name="context">現在のゲーム状態</param>
         /// <param name="remainingDepth">残り探索深さ（0 で評価）</param>
@@ -646,13 +729,35 @@ namespace Reluca.Search
                     moves = OrderMoves(moves, context);
                 }
 
+                bool isFirstMove = true;
                 foreach (var move in moves)
                 {
-                    // 着手を実行
-                    var child = MakeMove(context, move);
-
-                    // 再帰探索（標準的な NegaMax）
-                    long score = -Pvs(child, remainingDepth - 1, -beta, -alpha, false);
+                    // 着手を実行（in-place）
+                    var moveInfo = MakeMove(context, move);
+                    long score;
+                    try
+                    {
+                        if (isFirstMove)
+                        {
+                            // 最初の手: フルウィンドウで探索
+                            score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false);
+                            isFirstMove = false;
+                        }
+                        else
+                        {
+                            // 2手目以降: Null Window Search
+                            score = -Pvs(context, remainingDepth - 1, -alpha - 1, -alpha, false);
+                            if (score > alpha && score < beta)
+                            {
+                                // fail-high: フルウィンドウで再探索
+                                score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        UnmakeMove(context, moveInfo);
+                    }
 
                     // ベータカット
                     if (score >= beta)
@@ -790,18 +895,67 @@ namespace Reluca.Search
         }
 
         /// <summary>
-        /// 指し手を実行し、次の局面を生成します。
+        /// 指し手を実行し、盤面を in-place で更新します。
+        /// 着手前の状態を MoveInfo 構造体に保存して返します。
+        /// 呼び出し側は探索完了後に UnmakeMove で必ず盤面を復元する必要があります。
         /// </summary>
         /// <param name="context">現在のゲーム状態</param>
         /// <param name="move">指し手</param>
-        /// <returns>着手後のゲーム状態</returns>
-        private GameContext MakeMove(GameContext context, int move)
+        /// <returns>着手前の状態情報（UnmakeMove に渡して復元する）</returns>
+        private MoveInfo MakeMove(GameContext context, int move)
         {
-            var copyContext = BoardAccessor.DeepCopy(context);
-            copyContext.Move = move;
-            _reverseUpdater.Update(copyContext);
-            BoardAccessor.NextTurn(copyContext);
-            return copyContext;
+            // 着手前の状態を保存
+            var info = new MoveInfo
+            {
+                PrevBlack = context.Black,
+                PrevWhite = context.White,
+                PrevTurn = context.Turn,
+                PrevTurnCount = context.TurnCount,
+                PrevStage = context.Stage,
+                PrevMove = context.Move,
+                PrevMobility = context.Mobility,
+            };
+
+            // in-place で盤面を更新
+            context.Move = move;
+            _reverseUpdater.Update(context);
+            BoardAccessor.NextTurn(context);
+
+            return info;
+        }
+
+        /// <summary>
+        /// 盤面を着手前の状態に復元します。
+        /// MakeMove で保存した MoveInfo を使用して、全てのフィールドを元の値に戻します。
+        /// </summary>
+        /// <param name="context">現在のゲーム状態</param>
+        /// <param name="info">MakeMove で保存した着手前の状態情報</param>
+        private static void UnmakeMove(GameContext context, MoveInfo info)
+        {
+            context.Black = info.PrevBlack;
+            context.White = info.PrevWhite;
+            context.Turn = info.PrevTurn;
+            context.TurnCount = info.PrevTurnCount;
+            context.Stage = info.PrevStage;
+            context.Move = info.PrevMove;
+            context.Mobility = info.PrevMobility;
+        }
+
+        /// <summary>
+        /// ゲーム状態を MoveInfo から復元します。
+        /// SearchTimeoutException 発生時のフォールバック用です。
+        /// </summary>
+        /// <param name="context">復元対象のゲーム状態</param>
+        /// <param name="backup">復元元のバックアップ情報</param>
+        private static void RestoreContext(GameContext context, MoveInfo backup)
+        {
+            context.Black = backup.PrevBlack;
+            context.White = backup.PrevWhite;
+            context.Turn = backup.PrevTurn;
+            context.TurnCount = backup.PrevTurnCount;
+            context.Stage = backup.PrevStage;
+            context.Move = backup.PrevMove;
+            context.Mobility = backup.PrevMobility;
         }
 
         /// <summary>
@@ -821,24 +975,59 @@ namespace Reluca.Search
 
         /// <summary>
         /// 指し手を評価値順にソートします。
-        /// 既存の CachedNegaMax.MoveOrdering と同じロジックを使用します。
+        /// LINQ を使用せず、stackalloc + 挿入ソートによりアロケーションを最小化します。
+        /// MakeMove/UnmakeMove パターンにより盤面を in-place で変更・復元します。
+        /// オセロの合法手数は最大でも約 30 手程度であり、挿入ソートで十分な性能が得られます。
         /// </summary>
         /// <param name="moves">指し手リスト</param>
         /// <param name="context">現在のゲーム状態</param>
         /// <returns>ソート済みの指し手リスト</returns>
         private List<int> OrderMoves(List<int> moves, GameContext context)
         {
-            // 各手を実行して評価し、評価値の高い順（相手から見て悪い順）にソート
-            var ordered = moves
-                .OrderByDescending(move =>
+            // 評価値を格納する配列（スタック上に確保）
+            int count = moves.Count;
+            Span<long> scores = stackalloc long[count];
+            Span<int> indices = stackalloc int[count];
+
+            for (int i = 0; i < count; i++)
+            {
+                var moveInfo = MakeMove(context, moves[i]);
+                try
                 {
-                    var child = MakeMove(context, move);
                     // パスして元の手番から評価（既存と同じ）
-                    BoardAccessor.Pass(child);
-                    return Evaluate(child);
-                })
-                .ToList();
-            return ordered;
+                    BoardAccessor.Pass(context);
+                    scores[i] = Evaluate(context);
+                }
+                finally
+                {
+                    UnmakeMove(context, moveInfo);
+                }
+                indices[i] = i;
+            }
+
+            // 挿入ソート（降順）
+            for (int i = 1; i < count; i++)
+            {
+                long keyScore = scores[i];
+                int keyIndex = indices[i];
+                int j = i - 1;
+                while (j >= 0 && scores[j] < keyScore)
+                {
+                    scores[j + 1] = scores[j];
+                    indices[j + 1] = indices[j];
+                    j--;
+                }
+                scores[j + 1] = keyScore;
+                indices[j + 1] = keyIndex;
+            }
+
+            // ソート結果を反映
+            var sorted = new List<int>(count);
+            for (int i = 0; i < count; i++)
+            {
+                sorted.Add(moves[indices[i]]);
+            }
+            return sorted;
         }
     }
 }
