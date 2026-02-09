@@ -85,12 +85,13 @@ namespace Reluca.Movers
                 }
             }
 
+            bool isEndgame = context.TurnCount >= EndgameTurnThreshold;
             var options = new SearchOptions(
                 depth,
                 useTranspositionTable: true,
                 useAspirationWindow: true,
                 aspirationUseStageTable: true,
-                useMultiProbCut: true,
+                useMultiProbCut: !isEndgame,
                 timeLimitMs: timeLimitMs
             );
             var result = SearchEngine.Search(context, options, evaluator);

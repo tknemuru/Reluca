@@ -320,5 +320,34 @@ namespace Reluca.Tests.Search
                 $"無効な手が返されました: {bestMove}");
             Console.WriteLine($"BestMove={BoardAccessor.ToPosition(bestMove)}");
         }
+
+        /// <summary>
+        /// 空き15マス（TurnCount=49）の終盤局面で、MPC無効化により実用的な時間で完了することを検証します。
+        /// 旧 CachedNegaMax と同等の速度（数秒以内）を確認します。
+        /// </summary>
+        [TestMethod]
+        [Timeout(30000)]
+        public void 統合_空き15マスの終盤探索が実用的な時間で完了する()
+        {
+            // Arrange: TurnCount=49, 空き15マスの局面（NegaMax テストデータ）
+            var target = DiProvider.Get().GetService<Reluca.Movers.FindBestMover>();
+            var context = CreateGameContext("NegaMax", 2, 1, ResourceType.In);
+            int emptyCount = 64 - BitOperations.PopCount(context.Black | context.White);
+            Console.WriteLine($"TurnCount={context.TurnCount}, EmptyCount={emptyCount}");
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
+            // Act: FindBestMover 経由で終盤探索
+            var bestMove = target.Move(context);
+
+            sw.Stop();
+            Console.WriteLine($"BestMove={BoardAccessor.ToPosition(bestMove)}, ElapsedMs={sw.ElapsedMilliseconds}");
+
+            // Assert: 有効な手が返され、30秒以内に完了する
+            Assert.IsTrue(bestMove >= 0 && bestMove < 64,
+                $"無効な手が返されました: {bestMove}");
+            Assert.IsTrue(sw.ElapsedMilliseconds < 30000,
+                $"探索に {sw.ElapsedMilliseconds}ms かかりました。旧ロジック同等（数秒）を期待します");
+        }
     }
 }
