@@ -177,6 +177,34 @@ namespace Reluca.Search
         /// </summary>
         private int _aspirationFallbackCount;
 
+#if DEBUG
+        /// <summary>
+        /// ビットボード合法手生成の呼び出し回数カウンタ（デバッグ用）
+        /// </summary>
+        private long _debugBitboardMoveGenCount;
+
+        /// <summary>
+        /// Zobrist ハッシュ差分更新の呼び出し回数カウンタ（デバッグ用）
+        /// </summary>
+        private long _debugZobristUpdateCount;
+
+        /// <summary>
+        /// Zobrist ハッシュフルスキャンの呼び出し回数カウンタ（デバッグ用）
+        /// </summary>
+        private long _debugZobristFullScanCount;
+
+        /// <summary>
+        /// パターンインデックス差分更新の呼び出し回数カウンタ（デバッグ用）
+        /// </summary>
+        private long _debugPatternDeltaUpdateCount;
+
+        /// <summary>
+        /// パターンインデックス差分更新で影響を受けたパターン数の合計（デバッグ用）。
+        /// 平均影響パターン数の算出に使用します。
+        /// </summary>
+        private long _debugPatternDeltaAffectedTotal;
+#endif
+
         /// <summary>
         /// 探索の開始時刻を計測するストップウォッチ
         /// </summary>
@@ -363,6 +391,15 @@ namespace Reluca.Search
             _featurePatternExtractor.IncrementalMode = true;
             _patternChangeOffset = 0;
 
+#if DEBUG
+            // デバッグカウンタの初期化
+            _debugBitboardMoveGenCount = 0;
+            _debugZobristUpdateCount = 0;
+            _debugZobristFullScanCount = 0;
+            _debugPatternDeltaUpdateCount = 0;
+            _debugPatternDeltaAffectedTotal = 0;
+#endif
+
             // ストップウォッチ開始
             _stopwatch.Restart();
 
@@ -483,6 +520,21 @@ namespace Reluca.Search
 
             // 差分更新モードを終了
             _featurePatternExtractor.IncrementalMode = false;
+
+#if DEBUG
+            // デバッグカウンタのログ出力
+            double debugPatternDeltaAvgAffected = _debugPatternDeltaUpdateCount > 0
+                ? (double)_debugPatternDeltaAffectedTotal / _debugPatternDeltaUpdateCount
+                : 0;
+            _logger.LogInformation("Phase3 デバッグカウンタ {@DebugCounters}", new
+            {
+                BitboardMoveGenCount = _debugBitboardMoveGenCount,
+                ZobristUpdateCount = _debugZobristUpdateCount,
+                ZobristFullScanCount = _debugZobristFullScanCount,
+                PatternDeltaUpdateCount = _debugPatternDeltaUpdateCount,
+                PatternDeltaAvgAffected = debugPatternDeltaAvgAffected,
+            });
+#endif
 
             return new SearchResult(
                 result.BestMove,
@@ -615,6 +667,9 @@ namespace Reluca.Search
         {
             // ルート局面の合法手を取得
             var moves = _mobilityAnalyzer.Analyze(context);
+#if DEBUG
+            _debugBitboardMoveGenCount++;
+#endif
             if (moves.Count == 0)
             {
                 return new SearchResult(-1, Evaluate(context));
@@ -625,6 +680,9 @@ namespace Reluca.Search
             if (_options?.UseTranspositionTable == true)
             {
                 rootHash = _zobristHash.ComputeHash(context);
+#if DEBUG
+                _debugZobristFullScanCount++;
+#endif
             }
 
             // 手順序の最適化（優先順位: 1) TT bestMove, 2) 前回反復の bestMove, 3) その他）
@@ -645,6 +703,10 @@ namespace Reluca.Search
                     ulong childHash = _options?.UseTranspositionTable == true
                         ? _zobristHash.UpdateHash(rootHash, move, moveInfo.Flipped, moveInfo.PrevTurn == Disc.Color.Black)
                         : 0;
+#if DEBUG
+                    if (_options?.UseTranspositionTable == true)
+                        _debugZobristUpdateCount++;
+#endif
 
                     // 再帰探索
                     // depth=1 の時 remainingDepth=0 で即評価
@@ -789,6 +851,9 @@ namespace Reluca.Search
 
             // 合法手を取得
             var moves = _mobilityAnalyzer.Analyze(context);
+#if DEBUG
+            _debugBitboardMoveGenCount++;
+#endif
 
             long maxValue = DefaultAlpha;
             int localBestMove = TTEntry.NoBestMove;
@@ -824,6 +889,10 @@ namespace Reluca.Search
                         ulong childHash = _options?.UseTranspositionTable == true
                             ? _zobristHash.UpdateHash(currentHash, move, moveInfo.Flipped, moveInfo.PrevTurn == Disc.Color.Black)
                             : 0;
+#if DEBUG
+                        if (_options?.UseTranspositionTable == true)
+                            _debugZobristUpdateCount++;
+#endif
 
                         if (isFirstMove)
                         {
@@ -1006,6 +1075,11 @@ namespace Reluca.Search
         /// - BoardAccessor.Pass は Turn のみを変更する（OrderMoves 内で追加呼び出しされるケースがある）
         /// - MoveInfo は上記すべてのフィールド（Black, White, Turn, TurnCount, Stage, Move, Mobility）を保存するため、
         ///   UnmakeMove で完全に復元可能である
+        ///
+        /// 【重要】このメソッド内でタイムアウトチェック（ThrowIfTimeout / SearchTimeoutException のスロー）を
+        /// 行ってはならない。パターンインデックスの差分更新（UpdatePatternIndicesForSquare）が中途半端な状態で
+        /// 例外が発生すると、_patternChangeOffset が不整合な状態となり、復元処理が正しく機能しなくなる。
+        /// タイムアウトチェックは Pvs メソッド冒頭でのみ行うこと。
         /// </summary>
         /// <param name="context">現在のゲーム状態</param>
         /// <param name="move">指し手</param>
@@ -1058,6 +1132,10 @@ namespace Reluca.Search
                 tmpFlipped &= tmpFlipped - 1;
             }
             info.PatternChangeCount = changeCount;
+#if DEBUG
+            _debugPatternDeltaUpdateCount++;
+            _debugPatternDeltaAffectedTotal += changeCount;
+#endif
 
             // ビットボード演算で盤面を更新
             ulong moveBit = 1UL << move;

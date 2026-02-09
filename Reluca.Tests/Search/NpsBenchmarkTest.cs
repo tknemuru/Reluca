@@ -13,8 +13,10 @@ using Reluca.Contexts;
 using Reluca.Di;
 using Reluca.Evaluates;
 using Reluca.Helpers;
+using Reluca.Models;
 using Reluca.Search;
 using System.Diagnostics;
+using System.Numerics;
 
 namespace Reluca.Tests.Search
 {
@@ -47,6 +49,43 @@ namespace Reluca.Tests.Search
         private GameContext CreateGameContext(int index, int childIndex, ResourceType type)
         {
             return UnitTestHelper.CreateGameContext("PvsSearchEngine", index, childIndex, type);
+        }
+
+        /// <summary>
+        /// 終盤局面（空マス14以下）のゲーム状態を作成します。
+        /// ビットボードを直接指定して、50手目前後・空マス14の実際の終盤局面を構築します。
+        ///
+        /// 盤面配置（黒26石, 白24石, 空14マス）:
+        /// 　ａｂｃｄｅｆｇｈ
+        /// １○●○○○○●●
+        /// ２○●●●○●●●
+        /// ３○○●●●●●●
+        /// ４○○○●●○○
+        /// ５●○●●○○
+        /// ６●●●○○
+        /// ７●●○○
+        /// ８●○○○
+        /// </summary>
+        /// <returns>終盤局面のゲーム状態</returns>
+        private static GameContext CreateEndgameContext()
+        {
+            // Black: 26石, White: 24石, Empty: 14マス
+            ulong black = 0x0103070D18FCEEC2UL;
+            ulong white = 0x0E0C18326703113DUL;
+
+            Debug.Assert((black & white) == 0, "黒石と白石が重複しています");
+            Debug.Assert(BitOperations.PopCount(black) == 26, "黒石の数が不正です");
+            Debug.Assert(BitOperations.PopCount(white) == 24, "白石の数が不正です");
+            Debug.Assert(64 - BitOperations.PopCount(black | white) == 14, "空マス数が14ではありません");
+
+            var ctx = new GameContext
+            {
+                Board = new BoardContext { Black = black, White = white },
+                Turn = Disc.Color.Black,
+                TurnCount = 50,
+                Stage = 13,  // Math.Min((50 + 4) / 4, 15) = 13
+            };
+            return ctx;
         }
 
         /// <summary>
@@ -123,21 +162,13 @@ namespace Reluca.Tests.Search
             MeasureNps("中盤局面", () => CreateGameContext(2, 1, ResourceType.In), 10,
                 () => DiProvider.Get().GetService<FeaturePatternEvaluator>());
 
-            // 終盤局面 depth=8
-            MeasureNps("終盤局面", () =>
-            {
-                var ctx = CreateGameContext(1, 1, ResourceType.In);
-                ctx.TurnCount = 50;
-                return ctx;
-            }, 8, () => DiProvider.Get().GetService<FeaturePatternEvaluator>());
+            // 終盤局面 depth=8（空マス14の実際の終盤局面）
+            MeasureNps("終盤局面", CreateEndgameContext, 8,
+                () => DiProvider.Get().GetService<FeaturePatternEvaluator>());
 
-            // 終盤局面 depth=10
-            MeasureNps("終盤局面", () =>
-            {
-                var ctx = CreateGameContext(1, 1, ResourceType.In);
-                ctx.TurnCount = 50;
-                return ctx;
-            }, 10, () => DiProvider.Get().GetService<FeaturePatternEvaluator>());
+            // 終盤局面 depth=10（空マス14の実際の終盤局面）
+            MeasureNps("終盤局面", CreateEndgameContext, 10,
+                () => DiProvider.Get().GetService<FeaturePatternEvaluator>());
 
             Console.WriteLine("=== NPS Benchmark Complete ===");
         }
