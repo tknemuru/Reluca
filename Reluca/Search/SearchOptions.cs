@@ -12,6 +12,9 @@
 ///
 /// Multi-ProbCut パラメータ:
 /// - UseMultiProbCut: ON/OFF 切替（デフォルト OFF）
+///
+/// 時間制御パラメータ:
+/// - TimeLimitMs: 探索の制限時間（ミリ秒）。null の場合は時間制限なしで MaxDepth まで探索する
 /// </summary>
 namespace Reluca.Search
 {
@@ -73,6 +76,12 @@ namespace Reluca.Search
         public bool UseMultiProbCut { get; }
 
         /// <summary>
+        /// 探索の制限時間（ミリ秒）。
+        /// null の場合は時間制限なしで MaxDepth まで探索する。
+        /// </summary>
+        public long? TimeLimitMs { get; }
+
+        /// <summary>
         /// コンストラクタ
         /// </summary>
         /// <param name="maxDepth">最大探索深さ（省略時はデフォルト値）</param>
@@ -82,6 +91,7 @@ namespace Reluca.Search
         /// <param name="aspirationMaxRetry">Aspiration の最大再探索回数（省略時は 3）</param>
         /// <param name="aspirationUseStageTable">ステージ別 delta テーブルおよび指数拡張戦略を使用するか（省略時は false）</param>
         /// <param name="useMultiProbCut">Multi-ProbCut を使用するか（省略時は false）</param>
+        /// <param name="timeLimitMs">探索の制限時間（ミリ秒）。null の場合は時間制限なし（省略時は null）</param>
         public SearchOptions(
             int maxDepth = DefaultMaxDepth,
             bool useTranspositionTable = false,
@@ -89,7 +99,8 @@ namespace Reluca.Search
             long aspirationDelta = DefaultAspirationDelta,
             int aspirationMaxRetry = DefaultAspirationMaxRetry,
             bool aspirationUseStageTable = false,
-            bool useMultiProbCut = false)
+            bool useMultiProbCut = false,
+            long? timeLimitMs = null)
         {
             MaxDepth = maxDepth;
             UseTranspositionTable = useTranspositionTable;
@@ -98,6 +109,7 @@ namespace Reluca.Search
             AspirationMaxRetry = aspirationMaxRetry;
             AspirationUseStageTable = aspirationUseStageTable;
             UseMultiProbCut = useMultiProbCut;
+            TimeLimitMs = timeLimitMs;
         }
     }
 }

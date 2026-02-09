@@ -34,6 +34,12 @@
 /// - _mpcEnabled フラグにより MPC の再帰適用を防止（シングルスレッド前提）
 /// - カットペアを深い方から順に評価し、最初にカット条件が成立した時点で枝刈り確定
 /// - パス直後のノード（isPassed == true）では MPC を適用しない
+///
+/// 時間制御の責務:
+/// - レイヤー 1: 反復深化ループの各深さ完了後に経過時間を判定し、次の深さの探索可否を制御
+/// - レイヤー 2: ノード展開時に一定間隔でタイムアウトチェックを行い、SearchTimeoutException で中断
+/// - depth=1 の探索中はレイヤー 2 を無効化し、最低 1 手の探索結果を保証
+/// - TimeLimitMs 未指定時はタイムアウトチェックが無効化され、従来動作と同一
 /// </summary>
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -70,6 +76,12 @@ namespace Reluca.Search
         /// Aspiration δ の最大値（オーバーフロー防止）
         /// </summary>
         private const long MaxDelta = DefaultBeta - DefaultAlpha;
+
+        /// <summary>
+        /// タイムアウトチェックのノード間隔。
+        /// この値ごとに Stopwatch を確認する。2 のべき乗でビット AND による高速判定を行う。
+        /// </summary>
+        private const int TimeoutCheckInterval = 4096;
 
         /// <summary>
         /// ロガー
@@ -158,6 +170,16 @@ namespace Reluca.Search
         private int _aspirationFallbackCount;
 
         /// <summary>
+        /// 探索の開始時刻を計測するストップウォッチ
+        /// </summary>
+        private readonly Stopwatch _stopwatch = new();
+
+        /// <summary>
+        /// 探索の制限時間（ミリ秒）。null は制限なし
+        /// </summary>
+        private long? _timeLimitMs;
+
+        /// <summary>
         /// コンストラクタ。DI から依存を注入します。
         /// </summary>
         /// <param name="logger">ロガー</param>
@@ -201,6 +223,10 @@ namespace Reluca.Search
             _evaluator = evaluator;
             _options = options;
             _mpcEnabled = options.UseMultiProbCut;
+            _timeLimitMs = options.TimeLimitMs;
+
+            // ストップウォッチ開始
+            _stopwatch.Restart();
 
             // TT 使用時は探索開始前に1回だけクリア（反復ごとの Clear は禁止）
             if (options.UseTranspositionTable)
@@ -212,25 +238,81 @@ namespace Reluca.Search
             SearchResult result = new SearchResult(-1, 0);
             long prevValue = 0;
             long totalNodesSearched = 0;
+            int completedDepth = 0;
+            long prevDepthElapsedMs = 0;
 
             for (int depth = 1; depth <= options.MaxDepth; depth++)
             {
+                // レイヤー 1: 次の深さを探索するか判定
+                if (depth >= 2 && _timeLimitMs.HasValue)
+                {
+                    long elapsedMs = _stopwatch.ElapsedMilliseconds;
+                    long remainingMs = _timeLimitMs.Value - elapsedMs;
+
+                    // 前回の深さにかかった時間から次の深さの所要時間を推定
+                    // 分岐係数を考慮し、次の深さは前回の約 3 倍の時間を要すると推定
+                    long estimatedNextMs = prevDepthElapsedMs * 3;
+
+                    if (estimatedNextMs > remainingMs)
+                    {
+                        _logger.LogInformation(
+                            "時間制御により探索を打ち切り {@TimeControl}",
+                            new
+                            {
+                                CompletedDepth = completedDepth,
+                                ElapsedMs = elapsedMs,
+                                TimeLimitMs = _timeLimitMs.Value,
+                                EstimatedNextMs = estimatedNextMs,
+                                RemainingMs = remainingMs
+                            });
+                        break;
+                    }
+                }
+
                 _currentDepth = depth;
                 _nodesSearched = 0;
                 _mpcCutCount = 0;
                 _aspirationRetryCount = 0;
                 _aspirationFallbackCount = 0;
 
-                // Aspiration Window: depth >= 2 かつ UseAspirationWindow=true の場合
-                if (depth >= 2 && options.UseAspirationWindow)
+                long depthStartMs = _stopwatch.ElapsedMilliseconds;
+
+                try
                 {
-                    result = AspirationRootSearch(context, depth, prevValue);
+                    SearchResult depthResult;
+                    // Aspiration Window: depth >= 2 かつ UseAspirationWindow=true の場合
+                    if (depth >= 2 && options.UseAspirationWindow)
+                    {
+                        depthResult = AspirationRootSearch(context, depth, prevValue);
+                    }
+                    else
+                    {
+                        // depth=1 またはAspiration OFF: フルウィンドウで探索
+                        depthResult = RootSearch(context, depth, DefaultAlpha, DefaultBeta);
+                    }
+
+                    // 探索成功: 結果を更新
+                    result = depthResult;
+                    completedDepth = depth;
                 }
-                else
+                catch (SearchTimeoutException)
                 {
-                    // depth=1 またはAspiration OFF: フルウィンドウで探索
-                    result = RootSearch(context, depth, DefaultAlpha, DefaultBeta);
+                    // レイヤー 2: 探索途中でタイムアウト
+                    // 直前の深さの結果を返す（result は更新しない）
+                    _logger.LogInformation(
+                        "探索途中でタイムアウト {@Timeout}",
+                        new
+                        {
+                            InterruptedDepth = depth,
+                            CompletedDepth = completedDepth,
+                            ElapsedMs = _stopwatch.ElapsedMilliseconds,
+                            TimeLimitMs = _timeLimitMs.Value
+                        });
+                    break;
                 }
+
+                long depthElapsedMs = _stopwatch.ElapsedMilliseconds - depthStartMs;
+                prevDepthElapsedMs = depthElapsedMs;
 
                 totalNodesSearched += _nodesSearched;
                 _logger.LogInformation("探索進捗 {@SearchProgress}", new
@@ -241,13 +323,21 @@ namespace Reluca.Search
                     Value = result.Value,
                     MpcCuts = _mpcCutCount,
                     AspirationRetries = _aspirationRetryCount,
-                    AspirationFallbacks = _aspirationFallbackCount
+                    AspirationFallbacks = _aspirationFallbackCount,
+                    DepthElapsedMs = depthElapsedMs
                 });
 
                 prevValue = result.Value;
             }
 
-            return new SearchResult(result.BestMove, result.Value, totalNodesSearched);
+            _stopwatch.Stop();
+
+            return new SearchResult(
+                result.BestMove,
+                result.Value,
+                totalNodesSearched,
+                completedDepth,
+                _stopwatch.ElapsedMilliseconds);
         }
 
         /// <summary>
@@ -486,6 +576,17 @@ namespace Reluca.Search
         private long Pvs(GameContext context, int remainingDepth, long alpha, long beta, bool isPassed)
         {
             _nodesSearched++;
+
+            // タイムアウトチェック（一定ノード数ごと、ただし depth=1 では無効化）
+            if (_currentDepth >= 2
+                && _timeLimitMs.HasValue
+                && (_nodesSearched & (TimeoutCheckInterval - 1)) == 0)
+            {
+                if (_stopwatch.ElapsedMilliseconds >= _timeLimitMs.Value)
+                {
+                    throw new SearchTimeoutException();
+                }
+            }
 
             // 終了条件: 残り深さ 0 または終局
             if (remainingDepth == 0 || BoardAccessor.IsGameEndTurnCount(context))
