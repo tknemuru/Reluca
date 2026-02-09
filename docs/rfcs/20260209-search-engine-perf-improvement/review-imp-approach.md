@@ -8,11 +8,10 @@
 
 ### 2. 良い点 (Strengths)
 
-- **Phase 1 + Phase 2 の段階的実施**: RFC で定義された 2 段階の実装計画が忠実に反映されており、Phase 1（DI 排除、AnalyzeCount、LINQ 排除、ExtractNoAlloc）と Phase 2（MakeMove/UnmakeMove、record struct 化、NWS、Aspiration 二重探索排除）のすべてが実装されている。
-- **MakeMove/UnmakeMove のフェイルセーフ設計**: RFC に記載された 2 層のフェイルセーフ（try/finally による UnmakeMove 保証 + ルート盤面バックアップ）が正確に実装されている。
-- **Null Window Search の実装**: RFC 5.2.3 の設計が忠実に反映されており、最初の手のフルウィンドウ探索と 2 手目以降の NWS + fail-high 時の再探索が正しく実装されている。
-- **Aspiration 二重探索排除**: RFC 5.2.4 の設計通り、`_suppressTTStore = false` で 1 回の RootSearch で完結する方式に変更されている。
-- **テスト修正の妥当性**: NWS 導入による探索パス変化に伴うテスト期待値の修正（Aspiration ON/OFF 厳密一致から合法手有効性検証への変更）は、RFC 7.4 に記載された「探索パスの変化」の認識と整合している。
+- 前回アクションプラン P1-2 で指摘された OrderMoves の in-place ソート方式が RFC 5.1.3「Phase 2 との整合性」の設計通りに忠実に実装されている。
+- Pvs のパス処理における Turn 復元（P1-1）が try/finally で実装され、MakeMove/UnmakeMove パターンと一貫した例外安全性が確保されている。
+- MakeMove の Doc コメントにフィールド復元の完全性が明示され（P0-1）、`_reverseUpdater.Update`・`BoardAccessor.NextTurn`・`BoardAccessor.Pass` の各変更対象フィールドが網羅的に記載されている。
+- FeaturePatternExtractor.Initialize での `_preallocatedResults` 再構築（P1-3）が、既存のコンストラクタ初期化と同じパターンで一貫性を持って実装されている。
 
 ### 3. 指摘事項 (Issues)
 
@@ -29,11 +28,3 @@
 **P0**: 該当なし
 
 **P1**: 該当なし
-
-**[P2-1] RootSearch での NWS 未適用**
-- **対象セクション**: 5.2.3 PVS/NegaScout の Null Window Search 実装
-- **内容**: RFC の設計では Pvs メソッド内の NWS 実装のみが記載されており、RootSearch でのフルウィンドウ探索は意図的な設計判断と推測される。ただし、RootSearch でも NWS を適用することで、ルート局面での探索効率がさらに向上する可能性がある。
-
-**[P2-2] OrderMoves の戻り値でのリスト新規生成の残存**
-- **対象セクション**: 5.1.3 OrderMoves の LINQ 排除
-- **内容**: RFC 5.1.3 で「Phase 2 移行時には moves リスト自体を in-place でソートする方式に変更し、戻り値の `new List<int>(count)` アロケーションも排除する」と記載されているが、Phase 2 実装済みの現在も `new List<int>(count)` が残存している。RFC の Phase 2 移行後の OrderMoves 設計（`OrderMovesInPlace`）との差異であるが、現状の実装でも機能上の問題はない。
