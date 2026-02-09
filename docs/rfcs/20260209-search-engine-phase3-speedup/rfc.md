@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 | :--- | :--- |
 | **作成者 (Author)** | AI (Claude) |
-| **ステータス** | Draft (起草中) |
+| **ステータス** | Accepted (承認済) |
 | **作成日** | 2026-02-09 |
 | **タグ** | Search, Evaluates, Analyzers, Accessors, Transposition, Performance, Phase3 |
 | **関連リンク** | `docs/reports/20260209-report-search-performance-bottleneck.md`, `docs/rfcs/20260209-search-engine-perf-improvement/rfc.md` (Phase 1 & 2 RFC) |
