@@ -8,6 +8,7 @@
 /// - RemainingTimeMs が設定されている場合、TimeAllocator により各手番の制限時間を計算する
 /// - 終盤完全読み切りモード（TurnCount >= EndgameTurnThreshold）では時間制限を適用しない
 /// </summary>
+using System.Numerics;
 using Reluca.Contexts;
 using Reluca.Di;
 using Reluca.Evaluates;
@@ -26,11 +27,6 @@ namespace Reluca.Movers
         /// 終盤と判定するターン数の閾値
         /// </summary>
         private const int EndgameTurnThreshold = 46;
-
-        /// <summary>
-        /// 終盤時の探索深さ
-        /// </summary>
-        private const int EndgameDepth = 99;
 
         /// <summary>
         /// 通常時の探索深さ
@@ -70,7 +66,8 @@ namespace Reluca.Movers
             if (context.TurnCount >= EndgameTurnThreshold)
             {
                 evaluator = DiProvider.Get().GetService<DiscCountEvaluator>();
-                depth = EndgameDepth;
+                int emptyCount = 64 - BitOperations.PopCount(context.Black | context.White);
+                depth = emptyCount;
                 // 終盤完全読み切りモードでは時間制限を適用しない
                 // （Non-Goals に記載の通り、別途 RFC で対応）
             }

@@ -15,6 +15,11 @@ namespace Reluca.Evaluates
     public class DiscCountEvaluator : IEvaluable
     {
         /// <summary>
+        /// パターンインデックスの差分更新を必要とするかどうかを示します。
+        /// 石数差のみで評価するため、パターンインデックスを参照せず、常に false を返します。
+        /// </summary>
+        public bool RequiresPatternIndex => false;
+        /// <summary>
         /// ゲーム状態の評価を行います。
         /// </summary>
         /// <param name="context">ゲーム状態</param>

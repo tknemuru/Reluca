@@ -18,5 +18,11 @@ namespace Reluca.Evaluates
         /// <param name="context">ゲーム状態</param>
         /// <returns>ゲーム状態の評価値</returns>
         long Evaluate(GameContext context);
+
+        /// <summary>
+        /// パターンインデックスの差分更新を必要とするかどうかを示します。
+        /// true の場合、探索エンジンは MakeMove/UnmakeMove 時にパターンインデックスの差分更新を実行します。
+        /// </summary>
+        bool RequiresPatternIndex { get; }
     }
 }

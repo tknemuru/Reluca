@@ -216,6 +216,13 @@ namespace Reluca.Search
         private long? _timeLimitMs;
 
         /// <summary>
+        /// パターンインデックスの差分更新を使用するかどうかを示すフラグ。
+        /// 評価関数の RequiresPatternIndex に基づき Search メソッド冒頭で設定し、
+        /// MakeMove/UnmakeMove 内で参照します。
+        /// </summary>
+        private bool _usePatternIncremental;
+
+        /// <summary>
         /// 特徴パターン抽出機能。差分更新のための逆引きテーブルとパターンインデックスバッファを保持します。
         /// </summary>
         private readonly FeaturePatternExtractor _featurePatternExtractor;
@@ -386,10 +393,14 @@ namespace Reluca.Search
                 PrevMobility = context.Mobility,
             };
 
-            // パターンインデックスの初期フルスキャンと差分更新モードの設定
-            _featurePatternExtractor.ExtractNoAlloc(context.Board);
-            _featurePatternExtractor.IncrementalMode = true;
-            _patternChangeOffset = 0;
+            // 評価関数がパターンインデックスを必要とする場合のみ差分更新を有効化
+            _usePatternIncremental = evaluator.RequiresPatternIndex;
+            if (_usePatternIncremental)
+            {
+                _featurePatternExtractor.ExtractNoAlloc(context.Board);
+                _featurePatternExtractor.IncrementalMode = true;
+                _patternChangeOffset = 0;
+            }
 
 #if DEBUG
             // デバッグカウンタの初期化
@@ -477,10 +488,14 @@ namespace Reluca.Search
                     RestoreContext(context, rootBackup);
 
                     // パターンインデックスを復元（差分更新が中途半端な状態の可能性がある）
-                    _featurePatternExtractor.IncrementalMode = false;
-                    _featurePatternExtractor.ExtractNoAlloc(context.Board);
-                    _featurePatternExtractor.IncrementalMode = true;
-                    _patternChangeOffset = 0;
+                    if (_usePatternIncremental)
+                    {
+                        _featurePatternExtractor.IncrementalMode = false;
+                        _featurePatternExtractor.ExtractNoAlloc(context.Board);
+                        _featurePatternExtractor.IncrementalMode = true;
+                        _patternChangeOffset = 0;
+                    }
+                    _usePatternIncremental = false;
 
                     // 直前の深さの結果を返す（result は更新しない）
                     // タイムアウト発生時の深さで探索されたノード数も集計に含める
@@ -519,7 +534,11 @@ namespace Reluca.Search
             _stopwatch.Stop();
 
             // 差分更新モードを終了
-            _featurePatternExtractor.IncrementalMode = false;
+            if (_usePatternIncremental)
+            {
+                _featurePatternExtractor.IncrementalMode = false;
+            }
+            _usePatternIncremental = false;
 
 #if DEBUG
             // デバッグカウンタのログ出力
@@ -941,6 +960,12 @@ namespace Reluca.Search
             }
             else
             {
+                if (isPassed)
+                {
+                    // 連続パス = ゲーム終了 → リーフ評価を返す
+                    return Evaluate(context);
+                }
+
                 // パス処理: Turn を反転して再帰探索し、戻った後に Turn を復元する。
                 // MakeMove/UnmakeMove パターンと一貫した例外安全性を確保するため try/finally を使用する。
                 // パス時のハッシュ更新: 盤面は変わらず手番のみ反転するため、TurnKey を XOR する
@@ -1107,35 +1132,38 @@ namespace Reluca.Search
             // flipped を MoveInfo に保存（Zobrist 差分更新・評価関数差分更新で使用）
             info.Flipped = flipped;
 
-            // パターンインデックスの差分更新
-            // 着手位置: 空(Empty=1) → 手番色（Black=2 or White=0）
-            // 裏返し位置: 相手色(White=0 or Black=2) → 手番色（Black=2 or White=0）
-            bool isBlackTurn = context.Turn == Disc.Color.Black;
-            info.PatternChangeStart = _patternChangeOffset;
-            int changeCount = 0;
-
-            // 着手位置の差分 (Empty → Turn)
-            // Black: delta = (2 - 1) * weight = +weight
-            // White: delta = (0 - 1) * weight = -weight
-            int moveDelta = isBlackTurn ? 1 : -1; // 1 = (Black-Empty), -1 = (White-Empty)
-            changeCount += UpdatePatternIndicesForSquare(move, moveDelta);
-
-            // 裏返し位置の差分 (Opponent → Turn)
-            // Black turn: White(0) → Black(2), delta = +2 * weight
-            // White turn: Black(2) → White(0), delta = -2 * weight
-            int flipDelta = isBlackTurn ? 2 : -2;
-            ulong tmpFlipped = flipped;
-            while (tmpFlipped != 0)
+            // パターンインデックスの差分更新（パターンベース評価関数使用時のみ）
+            if (_usePatternIncremental)
             {
-                int sq = BitOperations.TrailingZeroCount(tmpFlipped);
-                changeCount += UpdatePatternIndicesForSquare(sq, flipDelta);
-                tmpFlipped &= tmpFlipped - 1;
-            }
-            info.PatternChangeCount = changeCount;
+                // 着手位置: 空(Empty=1) → 手番色（Black=2 or White=0）
+                // 裏返し位置: 相手色(White=0 or Black=2) → 手番色（Black=2 or White=0）
+                bool isBlackTurn = context.Turn == Disc.Color.Black;
+                info.PatternChangeStart = _patternChangeOffset;
+                int changeCount = 0;
+
+                // 着手位置の差分 (Empty → Turn)
+                // Black: delta = (2 - 1) * weight = +weight
+                // White: delta = (0 - 1) * weight = -weight
+                int moveDelta = isBlackTurn ? 1 : -1; // 1 = (Black-Empty), -1 = (White-Empty)
+                changeCount += UpdatePatternIndicesForSquare(move, moveDelta);
+
+                // 裏返し位置の差分 (Opponent → Turn)
+                // Black turn: White(0) → Black(2), delta = +2 * weight
+                // White turn: Black(2) → White(0), delta = -2 * weight
+                int flipDelta = isBlackTurn ? 2 : -2;
+                ulong tmpFlipped = flipped;
+                while (tmpFlipped != 0)
+                {
+                    int sq = BitOperations.TrailingZeroCount(tmpFlipped);
+                    changeCount += UpdatePatternIndicesForSquare(sq, flipDelta);
+                    tmpFlipped &= tmpFlipped - 1;
+                }
+                info.PatternChangeCount = changeCount;
 #if DEBUG
-            _debugPatternDeltaUpdateCount++;
-            _debugPatternDeltaAffectedTotal += changeCount;
+                _debugPatternDeltaUpdateCount++;
+                _debugPatternDeltaAffectedTotal += changeCount;
 #endif
+            }
 
             // ビットボード演算で盤面を更新
             ulong moveBit = 1UL << move;
@@ -1215,15 +1243,18 @@ namespace Reluca.Search
             context.Move = info.PrevMove;
             context.Mobility = info.PrevMobility;
 
-            // パターンインデックスを逆順に復元
-            var results = _featurePatternExtractor.PreallocatedResults;
-            int end = info.PatternChangeStart + info.PatternChangeCount;
-            for (int i = end - 1; i >= info.PatternChangeStart; i--)
+            // パターンインデックスの復元（パターンベース評価関数使用時のみ）
+            if (_usePatternIncremental)
             {
-                var change = _patternChangeBuffer[i];
-                results[change.PatternType][change.SubPatternIndex] = change.PrevIndex;
+                var results = _featurePatternExtractor.PreallocatedResults;
+                int end = info.PatternChangeStart + info.PatternChangeCount;
+                for (int i = end - 1; i >= info.PatternChangeStart; i--)
+                {
+                    var change = _patternChangeBuffer[i];
+                    results[change.PatternType][change.SubPatternIndex] = change.PrevIndex;
+                }
+                _patternChangeOffset = info.PatternChangeStart;
             }
-            _patternChangeOffset = info.PatternChangeStart;
         }
 
         /// <summary>
