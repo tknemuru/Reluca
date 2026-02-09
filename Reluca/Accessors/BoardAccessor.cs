@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -289,6 +290,7 @@ namespace Reluca.Accessors
 
         /// <summary>
         /// 指定した色の石の数を算出します。
+        /// BitOperations.PopCount により O(1) でビット数をカウントします。
         /// </summary>
         /// <param name="context">盤状態</param>
         /// <param name="color">算出対象の色</param>
@@ -297,16 +299,8 @@ namespace Reluca.Accessors
         {
             Debug.Assert(color != Disc.Color.Undefined, "算出対象色が未確定");
 
-            var result = 0;
             var target = color == Disc.Color.Black ? context.Black : context.White;
-            for (var i = 0; i < Board.AllLength; i++)
-            {
-                if ((target & (1ul << i)) > 0)
-                {
-                    result++;
-                }
-            }
-            return result;
+            return BitOperations.PopCount(target);
         }
 
         /// <summary>

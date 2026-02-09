@@ -1,6 +1,5 @@
 using Reluca.Contexts;
 using Reluca.Models;
-using Reluca.Updaters;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -9,21 +8,15 @@ namespace Reluca.Analyzers
 #pragma warning disable CS8602 // null 参照の可能性があるものの逆参照です。
     /// <summary>
     /// 着手可能情報の分析機能を提供します。
+    /// ビットボード演算による高速合法手生成を使用します。
     /// </summary>
     public class MobilityAnalyzer
     {
         /// <summary>
-        /// 石の裏返し更新機能
+        /// コンストラクタ。
         /// </summary>
-        private readonly MoveAndReverseUpdater _updater;
-
-        /// <summary>
-        /// コンストラクタ。DI からの依存注入を受け付けます。
-        /// </summary>
-        /// <param name="updater">石の裏返し更新機能</param>
-        public MobilityAnalyzer(MoveAndReverseUpdater updater)
+        public MobilityAnalyzer()
         {
-            _updater = updater;
         }
 
         /// <summary>
@@ -38,6 +31,7 @@ namespace Reluca.Analyzers
 
         /// <summary>
         /// 着手可能情報を分析して取得します。
+        /// ビットボード演算により、全合法手を一括で算出します。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <param name="turn">分析対象のターン</param>
@@ -47,42 +41,16 @@ namespace Reluca.Analyzers
             Debug.Assert(context != null);
             Debug.Assert(context.Turn != Disc.Color.Undefined);
 
-            var orgTurn = context.Turn;
-            if (turn == Disc.Color.Undefined)
-            {
-                turn = context.Turn;
-            }
-
-            try
-            {
-                // ターンを分析対象のターンに変更する
-                context.Turn = turn;
-
-                var mobilitys = new List<int>();
-                // 配置可能状態をリセットしておく
-                context.Mobility = 0ul;
-                for (var i = 0; i < Board.AllLength; i++)
-                {
-                    var valid = _updater.Update(context, i);
-                    if (valid)
-                    {
-                        // 有効な指し手を記録
-                        mobilitys.Add(i);
-                    }
-                }
-                return mobilitys;
-            } finally
-            {
-                // 必ずターンを元に戻しておく
-                context.Turn = orgTurn;
-            }
+            var (player, opponent) = GetPlayerOpponent(context, turn);
+            ulong moves = BitboardMobilityGenerator.GenerateMoves(player, opponent);
+            // context.Mobility はここでは更新しない（MobilityUpdater の責務）
+            // 探索エンジンでの使用時は PvsSearchEngine が管理する
+            return BitboardMobilityGenerator.ToMoveList(moves);
         }
 
         /// <summary>
         /// 着手可能数のみをカウントして返します。
-        /// リストのアロケーションを行わないため、カウントのみが必要な場合はこちらを使用してください。
-        /// MoveAndReverseUpdater.Update は analyze モード（第2引数 >= 0）で呼び出されるため、
-        /// 盤面への副作用はありません。context.Turn のみ一時的に変更しますが、finally で復元します。
+        /// ビットボード演算と PopCount により、リストのアロケーションなしにカウントを返します。
         /// </summary>
         /// <param name="context">ゲーム状態</param>
         /// <param name="turn">分析対象のターン</param>
@@ -92,30 +60,23 @@ namespace Reluca.Analyzers
             Debug.Assert(context != null);
             Debug.Assert(context.Turn != Disc.Color.Undefined);
 
-            var orgTurn = context.Turn;
-            if (turn == Disc.Color.Undefined)
-            {
-                turn = context.Turn;
-            }
+            var (player, opponent) = GetPlayerOpponent(context, turn);
+            ulong moves = BitboardMobilityGenerator.GenerateMoves(player, opponent);
+            return BitboardMobilityGenerator.CountMoves(moves);
+        }
 
-            try
-            {
-                context.Turn = turn;
-                context.Mobility = 0ul;
-                int count = 0;
-                for (var i = 0; i < Board.AllLength; i++)
-                {
-                    if (_updater.Update(context, i))
-                    {
-                        count++;
-                    }
-                }
-                return count;
-            }
-            finally
-            {
-                context.Turn = orgTurn;
-            }
+        /// <summary>
+        /// 手番に基づいて player と opponent のビットボードを取得します。
+        /// </summary>
+        /// <param name="context">ゲーム状態</param>
+        /// <param name="turn">手番の色。Undefined の場合は context.Turn を使用します。</param>
+        /// <returns>player と opponent のビットボードのタプル</returns>
+        private static (ulong player, ulong opponent) GetPlayerOpponent(GameContext context, Disc.Color turn)
+        {
+            if (turn == Disc.Color.Undefined) turn = context.Turn;
+            return turn == Disc.Color.Black
+                ? (context.Black, context.White)
+                : (context.White, context.Black);
         }
     }
 }

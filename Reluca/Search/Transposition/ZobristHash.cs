@@ -5,11 +5,12 @@
 /// 副作用: なし
 ///
 /// 備考:
-/// - Task 3c での差分更新実装を見据え、インスタンスクラスに変更
-/// - 現状は ComputeHash でフルスキャン計算のみを提供
+/// - ComputeHash: フルスキャン計算（初回ハッシュ生成用）
+/// - UpdateHash: 差分更新（探索中の MakeMove/UnmakeMove 時に使用）
 /// </summary>
 using Reluca.Contexts;
 using Reluca.Models;
+using System.Numerics;
 
 namespace Reluca.Search.Transposition
 {
@@ -59,6 +60,43 @@ namespace Reluca.Search.Transposition
             {
                 hash ^= ZobristKeys.TurnKey;
             }
+
+            return hash;
+        }
+
+        /// <summary>
+        /// 着手による差分で Zobrist ハッシュ値を更新します。
+        /// XOR の自己逆元性（A ^ B ^ B = A）を利用し、変化したマスのみ更新します。
+        /// 計算量は O(popcount(flipped)) で、フルスキャンの O(64) より高速です。
+        /// </summary>
+        /// <param name="currentHash">現在のハッシュ値</param>
+        /// <param name="move">着手位置（0-63）</param>
+        /// <param name="flipped">裏返された石のビットボード</param>
+        /// <param name="isBlackTurn">着手側が黒番であるかどうか（着手前の手番）</param>
+        /// <returns>更新後のハッシュ値</returns>
+        public ulong UpdateHash(ulong currentHash, int move, ulong flipped, bool isBlackTurn)
+        {
+            ulong hash = currentHash;
+
+            // 着手側と相手側の色インデックスを決定
+            int playerColorIndex = isBlackTurn ? ZobristKeys.BlackIndex : ZobristKeys.WhiteIndex;
+            int opponentColorIndex = isBlackTurn ? ZobristKeys.WhiteIndex : ZobristKeys.BlackIndex;
+
+            // 1. 着手位置に自石を配置（空→自石）
+            hash ^= ZobristKeys.PieceKeys[move, playerColorIndex];
+
+            // 2. 裏返された石: 相手色を除去して自色を追加（XOR で色を反転）
+            ulong remaining = flipped;
+            while (remaining != 0)
+            {
+                int square = BitOperations.TrailingZeroCount(remaining);
+                hash ^= ZobristKeys.PieceKeys[square, opponentColorIndex]; // 相手色を除去
+                hash ^= ZobristKeys.PieceKeys[square, playerColorIndex];   // 自色を追加
+                remaining &= remaining - 1; // 最下位ビットをクリア
+            }
+
+            // 3. 手番切り替え（常に XOR で反転）
+            hash ^= ZobristKeys.TurnKey;
 
             return hash;
         }
