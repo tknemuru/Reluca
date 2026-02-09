@@ -38,6 +38,18 @@
 - Null Window Search の実装により枝刈り効率を改善し、同一時間でより深い探索を可能にする
 - Aspiration Window の二重探索を排除し、反復深化 1 深さあたりの所要時間を短縮する
 
+### Phase 1 完了後の Go/No-Go 判定基準
+
+Phase 1 完了時点で以下の定量基準に基づき Phase 2 への進行可否を判定する。
+
+| 指標 | 計測方法 | Phase 2 進行条件 |
+|------|---------|-----------------|
+| GC Gen0 コレクション回数 | `dotnet-counters` で Phase 1 適用前後を計測 | 50% 以上削減されていること |
+| 探索結果の同一性 | 特定局面（depth=6 以上）で Phase 1 前後の最善手・評価値を比較 | 完全一致であること |
+| 探索時間 | `Stopwatch` による同一局面・同一深さでの計測 | 計測値が改善、または悪化が 5% 以内であること |
+
+GC Gen0 コレクション回数が 50% 未満の削減に留まった場合、Phase 1 の改善効果が不十分であるため Phase 2（特に MakeMove/UnmakeMove パターン）を優先的に実施する。逆に 50% 以上削減された場合でも Phase 2 は実施するが、スケジュールの柔軟な調整が可能となる。
+
 ### やらないこと (Non-Goals)
 
 - ビットボードによる高速合法手生成（Phase 3 として将来課題とする）
@@ -152,6 +164,8 @@ var black = MobilityAnalyzer.AnalyzeCount(context, Disc.Color.Black);
 var white = MobilityAnalyzer.AnalyzeCount(context, Disc.Color.White);
 ```
 
+**`MoveAndReverseUpdater.Update` の副作用について**: `AnalyzeCount` 内で呼び出す `_updater.Update(context, i)` は、第 2 引数 `move` に 0 以上の値を渡した場合 `analyze = true` となり、着手可能性の判定のみを行い盤面の変更は行わない（`MoveAndReverseUpdater.cs` の 384 行目 `if (validMove && !analyze)` で盤面更新がガードされている）。したがって、`AnalyzeCount` の呼び出しによる盤面への副作用はなく、ロールバック処理は不要である。`context.Turn` のみ一時的に変更するが、finally ブロックで元に戻しているため安全である。
+
 **効果**: 1 ノードあたり 2 回の `List<int>` アロケーションを排除する。
 
 #### 5.1.3 OrderMoves の LINQ 排除
@@ -207,7 +221,42 @@ private List<int> OrderMoves(List<int> moves, GameContext context)
 
 **[仮定]** 合法手数が `stackalloc` で安全に確保できる範囲（最大 64）に収まることを前提としている。オセロの理論的最大合法手数は盤面の空きマス数以下であるため、この前提は成立する。
 
-**効果**: LINQ のデリゲートオブジェクト、内部イテレータ、ソートバッファのアロケーションを排除する。
+**効果**: LINQ のデリゲートオブジェクト、内部イテレータ、ソートバッファのアロケーションを排除する。ただし、ソート結果として `new List<int>(count)` による新規リスト生成が 1 つ残存する。
+
+**Phase 2 との整合性**: Phase 2 で MakeMove/UnmakeMove パターンに移行した場合、OrderMoves 内の MakeMove 呼び出しも UnmakeMove との対に変更する必要がある。具体的には、各手の評価後に UnmakeMove で盤面を復元するループ構造に書き換える。また、Phase 2 移行時には moves リスト自体を in-place でソートする方式に変更し、戻り値の `new List<int>(count)` アロケーションも排除する。
+
+```csharp
+// Phase 2 移行後の OrderMoves（概要）
+private void OrderMovesInPlace(List<int> moves, GameContext context)
+{
+    int count = moves.Count;
+    Span<long> scores = stackalloc long[count];
+
+    for (int i = 0; i < count; i++)
+    {
+        var moveInfo = MakeMove(context, moves[i]);
+        BoardAccessor.Pass(context);
+        scores[i] = Evaluate(context);
+        UnmakeMove(context, moveInfo);
+    }
+
+    // moves リスト自体を in-place で挿入ソート（降順）
+    for (int i = 1; i < count; i++)
+    {
+        long keyScore = scores[i];
+        int keyMove = moves[i];
+        int j = i - 1;
+        while (j >= 0 && scores[j] < keyScore)
+        {
+            scores[j + 1] = scores[j];
+            moves[j + 1] = moves[j];
+            j--;
+        }
+        scores[j + 1] = keyScore;
+        moves[j + 1] = keyMove;
+    }
+}
+```
 
 #### 5.1.4 FeaturePatternExtractor.Extract のアロケーション排除
 
@@ -256,6 +305,8 @@ public class FeaturePatternExtractor
 ```
 
 **[仮定]** 探索はシングルスレッドで実行される前提であるため、内部バッファの共有による競合は発生しない。`PvsSearchEngine` のモジュール Doc コメントにも「シングルスレッド前提」と明記されている。
+
+**スレッド安全性に関する制約**: `ExtractNoAlloc` はシングルスレッド専用メソッドである。内部バッファを共有するため、マルチスレッド環境ではデータ競合が発生する。将来マルチスレッド探索を導入する場合は、`ThreadLocal<Dictionary<FeaturePattern.Type, int[]>>` によるスレッドローカルバッファ、またはスレッドごとに独立した `FeaturePatternExtractor` インスタンスを使用する必要がある。この制約は `ExtractNoAlloc` メソッドの Doc コメントに明記する。
 
 **影響範囲**: `FeaturePatternEvaluator.Evaluate` 内の `Extractor.Extract` 呼び出しを `ExtractNoAlloc` に変更する必要がある。戻り値の型が `Dictionary<FeaturePattern.Type, List<int>>` から `Dictionary<FeaturePattern.Type, int[]>` に変わるため、利用側のイテレーション処理を修正する。
 
@@ -331,6 +382,26 @@ var moveInfo = MakeMove(context, move);
 long score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false);
 UnmakeMove(context, moveInfo);
 ```
+
+**例外発生時のフェイルセーフ設計**: MakeMove/UnmakeMove パターンでは、探索中に例外（`SearchTimeoutException` 等）が発生した場合に UnmakeMove が呼ばれず盤面が不整合な状態になるリスクがある。現行の DeepCopy 方式ではコピーが独立しているため元の盤面に影響はないが、in-place 方式ではこの安全性が失われる。
+
+これに対し、以下の 2 層のフェイルセーフを設計する:
+
+1. **try/finally による UnmakeMove の保証**: Pvs メソッド内の MakeMove/UnmakeMove ペアを try/finally で囲み、例外発生時にも必ず UnmakeMove が実行されるようにする。
+
+```csharp
+var moveInfo = MakeMove(context, move);
+try
+{
+    score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false);
+}
+finally
+{
+    UnmakeMove(context, moveInfo);
+}
+```
+
+2. **ルート盤面バックアップによるフォールバック**: `Search` メソッドの冒頭で `GameContext` のルート状態（Black, White, Turn 等）をバックアップし、`SearchTimeoutException` を catch した後にルート状態を復元する。これにより、try/finally の連鎖で復元しきれない深い再帰からの脱出時にも安全性を担保する。
 
 **[仮定]** `MoveAndReverseUpdater.Update` が `context` を in-place で変更する現行の実装が、UnmakeMove で完全に元に戻せることを前提とする。`MoveAndReverseUpdater.Update` のソースコードを確認した結果、`BoardAccessor.SetTurnDiscs` / `SetOppositeDiscs` で `Black` / `White` フィールドを直接書き換えており、ビットボードの `Black` / `White` を保存・復元すれば完全に元に戻せることを確認済みである。
 
