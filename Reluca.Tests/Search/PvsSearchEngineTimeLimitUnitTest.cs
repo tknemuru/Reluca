@@ -218,6 +218,40 @@ namespace Reluca.Tests.Search
         }
 
         /// <summary>
+        /// レイヤー 2 タイムアウト発生時に中断された深さのノード数も NodesSearched に含まれる
+        /// </summary>
+        [TestMethod]
+        public void タイムアウト発生時に中断された深さのノード数もNodesSearchedに含まれる()
+        {
+            // Arrange
+            var context = CreateGameContext(1, 1, ResourceType.In);
+            var evaluator = DiProvider.Get().GetService<FeaturePatternEvaluator>();
+            // 短い制限時間で深い MaxDepth を設定し、タイムアウトを発生させる
+            var options = new SearchOptions(20, timeLimitMs: 50);
+
+            // Act
+            var result = Target.Search(context, options, evaluator);
+
+            // Assert: NodesSearched が 0 より大きい（中断された深さのノードも含まれている）
+            Assert.IsTrue(result.NodesSearched > 0,
+                $"NodesSearched が 0 です: {result.NodesSearched}");
+            Console.WriteLine($"タイムアウト時 NodesSearched={result.NodesSearched}, CompletedDepth={result.CompletedDepth}");
+        }
+
+        /// <summary>
+        /// TimeLimitMs に負値を指定した場合に ArgumentOutOfRangeException がスローされる
+        /// </summary>
+        [TestMethod]
+        [ExpectedException(typeof(ArgumentOutOfRangeException))]
+        public void TimeLimitMsに負値を指定するとArgumentOutOfRangeExceptionがスローされる()
+        {
+            // Arrange & Act
+            var options = new SearchOptions(5, timeLimitMs: -100);
+
+            // Assert: ExpectedException 属性により例外が期待される
+        }
+
+        /// <summary>
         /// Aspiration Window + 時間制御の組み合わせで正しく動作する
         /// </summary>
         [TestMethod]

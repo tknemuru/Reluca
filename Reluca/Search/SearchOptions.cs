@@ -102,6 +102,14 @@ namespace Reluca.Search
             bool useMultiProbCut = false,
             long? timeLimitMs = null)
         {
+            if (timeLimitMs.HasValue && timeLimitMs.Value < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(timeLimitMs),
+                    timeLimitMs.Value,
+                    "制限時間は 0 以上の値を指定してください。");
+            }
+
             MaxDepth = maxDepth;
             UseTranspositionTable = useTranspositionTable;
             UseAspirationWindow = useAspirationWindow;

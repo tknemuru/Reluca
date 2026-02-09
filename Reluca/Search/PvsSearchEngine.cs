@@ -299,6 +299,8 @@ namespace Reluca.Search
                 {
                     // レイヤー 2: 探索途中でタイムアウト
                     // 直前の深さの結果を返す（result は更新しない）
+                    // タイムアウト発生時の深さで探索されたノード数も集計に含める
+                    totalNodesSearched += _nodesSearched;
                     _logger.LogInformation(
                         "探索途中でタイムアウト {@Timeout}",
                         new
