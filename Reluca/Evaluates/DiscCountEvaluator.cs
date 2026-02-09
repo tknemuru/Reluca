@@ -19,6 +19,7 @@ namespace Reluca.Evaluates
         /// 石数差のみで評価するため、パターンインデックスを参照せず、常に false を返します。
         /// </summary>
         public bool RequiresPatternIndex => false;
+
         /// <summary>
         /// ゲーム状態の評価を行います。
         /// </summary>

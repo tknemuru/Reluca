@@ -25,6 +25,7 @@ namespace Reluca.Evaluates
         /// 特徴パターン評価関数はパターンインデックスに依存するため、常に true を返します。
         /// </summary>
         public bool RequiresPatternIndex => true;
+
         /// <summary>
         /// キーと桁数を分離する文字
         /// </summary>
