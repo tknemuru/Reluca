@@ -81,11 +81,13 @@ Reluca/
 
 | クラス | 責務 |
 |--------|------|
-| `PvsSearchEngine` | PVS（Principal Variation Search / NegaScout）による探索。反復深化、Aspiration Window、置換表、Multi-ProbCut を統合 |
+| `PvsSearchEngine` | PVS（Principal Variation Search / NegaScout）による探索。反復深化、Aspiration Window、置換表、Multi-ProbCut、時間制御を統合 |
 | `MpcParameterTable` | Multi-ProbCut のステージ別・カットペア別回帰パラメータテーブル |
 | `MpcParameters` | Multi-ProbCut の回帰パラメータ（a, b, sigma）を保持するデータクラス |
 | `MpcCutPair` | Multi-ProbCut のカットペア定義（浅い探索深さ、深い探索深さ）を保持するデータクラス |
 | `AspirationParameterTable` | Aspiration Window のステージ別 delta テーブル。序盤/中盤/終盤で異なる初期 delta を管理し、深さ補正を適用する |
+| `TimeAllocator` | 対局全体の持ち時間を各手番に配分する。残り手数に応じた動的な配分戦略（序盤・中盤・終盤のフェーズ係数）を実装。状態を持たない純粋な計算クラス |
+| `SearchTimeoutException` | 探索の制限時間超過時にスローされる例外。PVS 探索の再帰呼び出しを一括で中断するために使用する |
 
 ### Transposition（置換表）
 
@@ -108,7 +110,7 @@ Reluca/
 
 | クラス | 責務 |
 |--------|------|
-| `FindBestMover` | 探索エンジンを使用して最善手を決定 |
+| `FindBestMover` | 探索エンジンを使用して最善手を決定。TimeAllocator と連携し、残り持ち時間に基づく時間制限付き探索に対応 |
 | `FindFirstMover` | 最初に見つかった合法手を返す |
 
 ### Updaters（状態更新）

@@ -27,16 +27,30 @@ namespace Reluca.Search
         public long NodesSearched { get; }
 
         /// <summary>
+        /// 探索が完了した最大深さ
+        /// </summary>
+        public int CompletedDepth { get; }
+
+        /// <summary>
+        /// 探索の経過時間（ミリ秒）
+        /// </summary>
+        public long ElapsedMs { get; }
+
+        /// <summary>
         /// コンストラクタ
         /// </summary>
         /// <param name="bestMove">最善手</param>
         /// <param name="value">評価値</param>
         /// <param name="nodesSearched">探索ノード数</param>
-        public SearchResult(int bestMove, long value, long nodesSearched = 0)
+        /// <param name="completedDepth">探索が完了した最大深さ</param>
+        /// <param name="elapsedMs">探索の経過時間（ミリ秒）</param>
+        public SearchResult(int bestMove, long value, long nodesSearched = 0, int completedDepth = 0, long elapsedMs = 0)
         {
             BestMove = bestMove;
             Value = value;
             NodesSearched = nodesSearched;
+            CompletedDepth = completedDepth;
+            ElapsedMs = elapsedMs;
         }
     }
 }
