@@ -39,11 +39,11 @@
 
 Phase 3 の着手には以下の前提条件を満たしていることが必要である:
 
-| 条件 | 確認方法 |
-|------|---------|
-| Phase 1 & Phase 2 の全項目が実装・マージ済みであること | Phase 1/2 の PR がマージされていること |
-| MakeMove/UnmakeMove パターンが正しく動作していること | 既存テスト全通過 + 実対局での動作確認 |
-| `BoardContext` が `record struct` であること | コードベースの確認 |
+| 条件 | 確認方法 | 具体的な参照先 |
+|------|---------|--------------|
+| Phase 1 & Phase 2 の全項目が実装・マージ済みであること | Phase 1/2 の PR がマージされていること | RFC: `docs/rfcs/20260209-search-engine-perf-improvement/rfc.md`, PR: #58（RFC承認）, #59（実装マージ） |
+| MakeMove/UnmakeMove パターンが正しく動作していること | 既存テスト全通過 + 実対局での動作確認 | `Reluca.Tests/Search/PvsSearchEngine*UnitTest.cs` の全テスト通過 |
+| `BoardContext` が `record struct` であること | コードベースの確認 | `Reluca/Contexts/BoardContext.cs` |
 
 ### やらないこと (Non-Goals)
 
@@ -77,6 +77,25 @@ Phase 3 の着手には以下の前提条件を満たしていることが必要
 #### 5.1.2 ビットボード合法手生成アルゴリズム
 
 8 方向（上下左右、4 対角線）のそれぞれについて、シフト演算で「相手石の連続列を追いかけ、その先に自石がある」パターンを一括検出する。オセロのビットボード合法手生成は広く知られた手法であり、以下に具体的な実装を示す。
+
+**シフト方向とマスクの対応表**
+
+マスクは `opponent` に対して適用し、シフト先で列の回り込みが発生するビットを事前に除去する。各方向で「シフト操作の結果、隣接する行に回り込む可能性がある列」のみをマスクすればよい。
+
+| 方向 | シフト量 | マスク | 回り込み防止の根拠 |
+|------|---------|--------|-------------------|
+| 右 (East) | +1 (左シフト) | `NotAFile` | 左シフトにより A列(bit0,8,16,...) の相手石が H列(bit7,15,23,...) に回り込むのを防止する。A列のビットを落とすことで回り込みを排除する。 |
+| 左 (West) | -1 (右シフト) | `NotHFile` | 右シフトにより H列の相手石が A列に回り込むのを防止する。H列のビットを落とすことで回り込みを排除する。 |
+| 下 (South) | +8 (左シフト) | `0xFFFFFFFFFFFFFFFF` | 行方向のシフトでは列の回り込みは発生しない。マスク不要（全ビット有効）。 |
+| 上 (North) | -8 (右シフト) | `0xFFFFFFFFFFFFFFFF` | 同上。行方向のシフトでは列の回り込みは発生しない。 |
+| 右下 (SE) | +9 (左シフト) | `NotAFile` | shift=9 は「1行下 + 1列右」に相当する。右方向の成分（+1）により A列→H列の回り込みが発生しうるため、`NotAFile` で防止する。下方向の成分（+8）は列の回り込みを起こさないため、`NotHFile` は不要である。 |
+| 左上 (NW) | -9 (右シフト) | `NotHFile` | shift=-9 は「1行上 + 1列左」に相当する。左方向の成分（-1）により H列→A列の回り込みが発生しうるため、`NotHFile` で防止する。上方向の成分（-8）は列の回り込みを起こさない。 |
+| 右上 (NE) | -7 (右シフト) | `NotAFile` | shift=-7 は「1行上 + 1列右」に相当する。右方向の成分（+1）により A列→H列の回り込みが発生しうるため、`NotAFile` で防止する。上方向の成分（-8）は列の回り込みを起こさない。 |
+| 左下 (SW) | +7 (左シフト) | `NotHFile` | shift=7 は「1行下 + 1列左」に相当する。左方向の成分（-1）により H列→A列の回り込みが発生しうるため、`NotHFile` で防止する。下方向の成分（+8）は列の回り込みを起こさない。 |
+
+対角線方向で片側の列マスクのみで十分な理由: 対角線シフトは「行方向 +/- 8」と「列方向 +/- 1」の合成である。行方向の成分は列の回り込みを起こさず、列方向の成分は片側の列の回り込みのみを起こす。したがって、列方向の成分が起こす回り込みを防止する片側マスクのみで十分であり、`NotAFile & NotHFile` の両端マスクは不要である。
+
+`ComputeFlippedDirection`（5.1.3）でも同一のシフト量・マスク対応表を使用し、一貫性を保つ。
 
 ```csharp
 /// <summary>
@@ -184,7 +203,7 @@ public static class BitboardMobilityGenerator
 
 #### 5.1.3 裏返し処理のビットボード化
 
-`MoveAndReverseUpdater.Update` の裏返し処理（着手実行モード）もビットボード化する。着手位置と方向から裏返すべき石を一括計算する。
+`MoveAndReverseUpdater.Update` の裏返し処理（着手実行モード）もビットボード化する。着手位置と方向から裏返すべき石を一括計算する。`ComputeFlippedDirection` は 5.1.2 の `FindFlips` と同一のシフト量・マスク対応表を使用する。
 
 ```csharp
 /// <summary>
@@ -199,7 +218,7 @@ public static ulong ComputeFlipped(ulong player, ulong opponent, int move)
     ulong moveBit = 1UL << move;
     ulong flipped = 0UL;
 
-    // 8方向それぞれについて裏返し判定
+    // 8方向それぞれについて裏返し判定（マスク対応は FindFlips と同一）
     flipped |= ComputeFlippedDirection(player, opponent, moveBit, 1, NotAFile);   // 右
     flipped |= ComputeFlippedDirection(player, opponent, moveBit, -1, NotHFile);  // 左
     flipped |= ComputeFlippedDirection(player, opponent, moveBit, 8, 0xFFFFFFFFFFFFFFFFUL);  // 下
@@ -246,6 +265,74 @@ private static (ulong player, ulong opponent) GetPlayerOpponent(GameContext cont
 **[仮定]** ビットボード合法手生成の結果は、現行の `MoveAndReverseUpdater.Update` による逐次判定と完全に一致する前提である。実装後に全マスの合法手判定結果が一致することを網羅的にテストする。
 
 **効果**: 合法手生成の実行時間を 1/10〜1/20 に削減する。ビットボード方式では条件分岐が大幅に削減され、CPU のパイプライン効率も向上する。
+
+#### 5.1.5 PvsSearchEngine.MakeMove のビットボード化と MoveAndReverseUpdater の責務分離
+
+現行の `PvsSearchEngine.MakeMove` は `_reverseUpdater.Update(context)` を呼び出して着手を実行している。ビットボード化後は、`BitboardMobilityGenerator.ComputeFlipped` + ビットボード演算で盤面を直接更新する。これにより `PvsSearchEngine` から `MoveAndReverseUpdater` への依存を排除する。
+
+**MakeMove のビットボード化後のコード例:**
+
+```csharp
+private MoveInfo MakeMove(GameContext context, int move)
+{
+    // 着手前の状態を保存
+    var info = new MoveInfo
+    {
+        PrevBlack = context.Black,
+        PrevWhite = context.White,
+        PrevTurn = context.Turn,
+        PrevTurnCount = context.TurnCount,
+        PrevStage = context.Stage,
+        PrevMove = context.Move,
+        PrevMobility = context.Mobility,
+    };
+
+    // ビットボード演算で裏返し石を計算
+    var (player, opponent) = context.Turn == Disc.Color.Black
+        ? (context.Black, context.White)
+        : (context.White, context.Black);
+    ulong flipped = BitboardMobilityGenerator.ComputeFlipped(player, opponent, move);
+
+    // flipped を MoveInfo に保存（Zobrist 差分更新・評価関数差分更新で使用）
+    info.Flipped = flipped;
+
+    // ビットボード演算で盤面を更新
+    ulong moveBit = 1UL << move;
+    player |= moveBit | flipped;    // 着手位置 + 裏返し石を自石に追加
+    opponent &= ~flipped;           // 裏返し石を相手石から除去
+
+    // コンテキストに反映
+    if (context.Turn == Disc.Color.Black)
+    {
+        context.Black = player;
+        context.White = opponent;
+    }
+    else
+    {
+        context.White = player;
+        context.Black = opponent;
+    }
+
+    context.Move = move;
+    BoardAccessor.NextTurn(context);
+
+    return info;
+}
+```
+
+`UnmakeMove` は従来通り `MoveInfo` から全フィールドを復元するため、変更不要である。
+
+**MoveAndReverseUpdater の位置づけ:**
+
+- `MoveAndReverseUpdater` は探索エンジン（`PvsSearchEngine`）からは使用しなくなる。DI コンテナからの注入も不要となる。
+- ただし、`MoveAndReverseUpdater` は UI 層（Windows Forms）での着手実行や、合法手判定（`Update(context, move)` の分析モード）で引き続き使用される。したがって、クラス自体は削除せず、探索エンジン外の用途で維持する。
+- `PvsSearchEngine` のコンストラクタから `MoveAndReverseUpdater reverseUpdater` パラメータを削除し、`_reverseUpdater` フィールドも削除する。
+
+**`flipped` ビットボードの伝播経路:**
+
+`MakeMove` が返す `MoveInfo.Flipped` は以下の 2 箇所で活用される:
+1. **Zobrist ハッシュ差分更新** (5.2): `_zobristHash.UpdateHash(currentHash, move, info.Flipped, turn)` で使用
+2. **評価関数差分更新** (5.4): 変化マスの特定に使用（`moveBit | info.Flipped` が全変化マス）
 
 ### 5.2 Zobrist ハッシュの差分更新
 
@@ -318,26 +405,211 @@ public ulong UpdateHash(ulong currentHash, int move, ulong flipped, Disc.Color t
 }
 ```
 
-#### 5.2.5 PvsSearchEngine への統合
+#### 5.2.5 PvsSearchEngine への統合 -- ハッシュ値伝播方式
 
-MakeMove/UnmakeMove パターンと統合する。ハッシュ値を `MoveInfo` に保持し、MakeMove 時に差分更新、UnmakeMove 時に復元する。
+ハッシュ値の伝播方式として **`Pvs` メソッドの引数方式** を採用する。`GameContext` にフィールドを追加する方式と比較して、以下の利点がある:
+
+- `GameContext` への変更が不要であり、既存の全コードへの影響が限定的である
+- ハッシュ値の管理が `PvsSearchEngine` 内で完結し、責務が明確である
+- `MoveInfo` への `PrevHash` 保存と組み合わせることで、UnmakeMove 時の復元も自然に設計できる
+
+**MoveInfo の拡張:**
 
 ```csharp
-// MoveInfo に追加
 private struct MoveInfo
 {
     // ... 既存フィールド ...
     public ulong PrevHash;      // 着手前のハッシュ値
     public ulong Flipped;       // 裏返された石のビットボード
 }
+```
 
-// Pvs メソッド内で現在のハッシュを保持・伝播
-// ルートで ComputeHash を 1 回呼び、以降は UpdateHash で差分更新
+**Pvs メソッドのシグネチャ変更:**
+
+```csharp
+// 変更前
+private long Pvs(GameContext context, int remainingDepth, long alpha, long beta, bool isPassed)
+
+// 変更後: currentHash パラメータを追加
+private long Pvs(GameContext context, int remainingDepth, long alpha, long beta, bool isPassed, ulong currentHash)
+```
+
+**RootSearch でのハッシュ初期化と伝播:**
+
+```csharp
+private SearchResult RootSearch(GameContext context, int depth, long alpha, long beta)
+{
+    var moves = _mobilityAnalyzer.Analyze(context);
+    if (moves.Count == 0)
+    {
+        return new SearchResult(-1, Evaluate(context));
+    }
+
+    // ルート局面でフルスキャンによるハッシュ計算（1回のみ）
+    ulong rootHash = 0;
+    if (_options?.UseTranspositionTable == true)
+    {
+        rootHash = _zobristHash.ComputeHash(context);
+    }
+
+    moves = OptimizeMoveOrder(moves, context, depth, rootHash);
+
+    // ... alpha/beta 初期化 ...
+
+    foreach (var move in moves)
+    {
+        var moveInfo = MakeMove(context, move);
+        // MakeMove 後にハッシュを差分更新
+        ulong childHash = 0;
+        if (_options?.UseTranspositionTable == true)
+        {
+            childHash = _zobristHash.UpdateHash(rootHash, move, moveInfo.Flipped, moveInfo.PrevTurn);
+        }
+
+        long score;
+        try
+        {
+            score = -Pvs(context, depth - 1, -beta, -alpha, false, childHash);
+        }
+        finally
+        {
+            UnmakeMove(context, moveInfo);
+            // UnmakeMove 後はハッシュ自動復元不要（rootHash を保持し続ける）
+        }
+        // ...
+    }
+
+    // TT Store（rootHash を使用）
+    if (_options?.UseTranspositionTable == true && !_suppressTTStore)
+    {
+        var boundType = DetermineBoundType(maxValue, originalAlpha, beta);
+        _transpositionTable.Store(rootHash, depth, maxValue, boundType, rootBestMove);
+    }
+
+    return new SearchResult(rootBestMove, maxValue);
+}
+```
+
+**Pvs メソッド内でのハッシュ管理:**
+
+```csharp
+private long Pvs(GameContext context, int remainingDepth, long alpha, long beta, bool isPassed, ulong currentHash)
+{
+    _nodesSearched++;
+
+    // ... タイムアウトチェック、終了条件 ...
+
+    // TT Probe（currentHash をそのまま使用、ComputeHash 呼び出し不要）
+    if (_options?.UseTranspositionTable == true)
+    {
+        if (_transpositionTable.TryProbe(currentHash, remainingDepth, alpha, beta, out var entry))
+        {
+            return entry.Value;
+        }
+    }
+
+    // MPC 判定
+    if (_mpcEnabled && !isPassed)
+    {
+        // MPC の浅い探索にも currentHash を伝播する
+        var mpcResult = TryMultiProbCut(context, remainingDepth, alpha, beta, currentHash);
+        if (mpcResult.HasValue)
+        {
+            return mpcResult.Value;
+        }
+    }
+
+    var moves = _mobilityAnalyzer.Analyze(context);
+
+    if (moves.Count > 0)
+    {
+        // Move Ordering（TT bestMove の取得に currentHash を使用）
+        // ...
+
+        foreach (var move in moves)
+        {
+            var moveInfo = MakeMove(context, move);
+            // MakeMove 後にハッシュを差分更新
+            ulong childHash = 0;
+            if (_options?.UseTranspositionTable == true)
+            {
+                childHash = _zobristHash.UpdateHash(currentHash, move, moveInfo.Flipped, moveInfo.PrevTurn);
+            }
+
+            long score;
+            try
+            {
+                score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false, childHash);
+                // Null Window Search の再探索でも childHash を再利用（同一の子ノードのため）
+            }
+            finally
+            {
+                UnmakeMove(context, moveInfo);
+                // UnmakeMove 後は currentHash が引き続き有効
+            }
+            // ...
+        }
+    }
+    else
+    {
+        // パス処理: 盤面は変化しないため flipped = 0、着手位置もない
+        // 手番変更のみなので hash ^= TurnKey で差分更新する
+        ulong passHash = currentHash ^ ZobristKeys.TurnKey;
+        var prevTurn = context.Turn;
+        BoardAccessor.Pass(context);
+        try
+        {
+            maxValue = -Pvs(context, remainingDepth - 1, -beta, -alpha, true, passHash);
+        }
+        finally
+        {
+            context.Turn = prevTurn;
+            // 復元後は currentHash が引き続き有効
+        }
+    }
+
+    // TT Store（currentHash を使用）
+    if (_options?.UseTranspositionTable == true && !_suppressTTStore && moves.Count > 0)
+    {
+        var boundType = DetermineBoundType(maxValue, originalAlpha, beta);
+        _transpositionTable.Store(currentHash, remainingDepth, maxValue, boundType, localBestMove);
+    }
+
+    return maxValue;
+}
+```
+
+**MPC 浅い探索でのハッシュ伝播:**
+
+```csharp
+private long? TryMultiProbCut(GameContext context, int remainingDepth, long alpha, long beta, ulong currentHash)
+{
+    // ...
+    // MPC の浅い探索は同一局面に対する別深さの探索であるため、
+    // currentHash をそのまま渡す（盤面が変化しないため差分更新は不要）
+    long shallowValue = Pvs(context, pair.ShallowDepth, DefaultAlpha, DefaultBeta, false, currentHash);
+    // ...
+}
+```
+
+**OptimizeMoveOrder でのハッシュ使用:**
+
+```csharp
+private List<int> OptimizeMoveOrder(List<int> moves, GameContext context, int depth, ulong currentHash)
+{
+    // TT bestMove の取得に currentHash を使用（ComputeHash 呼び出し不要）
+    if (_options?.UseTranspositionTable == true)
+    {
+        int ttBestMove = _transpositionTable.GetBestMove(currentHash);
+        // ...
+    }
+    // ...
+}
 ```
 
 **[仮定]** `MoveAndReverseUpdater.Update` の裏返し処理をビットボード化（5.1.3）した結果として `flipped` ビットボードが得られる前提である。5.1 のビットボード合法手生成と本項目は密結合しており、5.1 の実装が先行する必要がある。
 
-**効果**: ノードあたりの Zobrist ハッシュ計算コストを O(64) から O(n)（n = 裏返し枚数、通常 2〜10）に削減する。
+**効果**: ノードあたりの Zobrist ハッシュ計算コストを O(64) から O(n)（n = 裏返し枚数、通常 2〜10）に削減する。加えて、`Pvs` 内の `ComputeHash` 呼び出し（毎ノード O(64)）が完全に排除される。
 
 ### 5.3 `BitOperations.PopCount()` の利用
 
@@ -430,6 +702,8 @@ public static int GetDiscCount(BoardContext context, Disc.Color color)
 - 白 → 黒: `index += 2 * w - 0 * w = 2w`（White=0 → Black=2）
 - 黒 → 白: `index += 0 * w - 2 * w = -2w`（Black=2 → White=0）
 
+**[仮定]** 現行の `ConvertToTernaryIndex` は MSB 側（パターン定義の先頭マス）から `index *= 3; index += value` で計算しているため、パターン定義の i 番目のマス（0-indexed）に対応する重みは `3^(length - 1 - i)` となる。逆引きテーブルの `TernaryWeight` はこの計算方向に合わせて設定する。実装時にパターン定義のマス順序と重み計算の整合性を網羅的に検証する。
+
 #### 5.4.3 マス → パターン逆引きテーブル
 
 差分更新には「あるマスが変化した時、どのパターンに影響するか」を高速に逆引きする必要がある。初期化時に以下の逆引きテーブルを構築する。
@@ -462,22 +736,106 @@ public readonly struct PatternMapping
 private PatternMapping[][] _squareToPatterns; // [64][]
 ```
 
-#### 5.4.4 差分更新の統合
+**逆引きテーブルと `Initialize` メソッドの整合性:**
 
-MakeMove/UnmakeMove パターンと統合し、`MoveInfo` にパターンインデックスの状態を保存・復元する。
+`FeaturePatternExtractor.Initialize` メソッドが呼ばれた場合、`PatternPositions` が再設定されるため、逆引きテーブルも再構築が必要である。`Initialize` メソッド内で `BuildSquareToPatterns()` を呼び出し、逆引きテーブルを `PatternPositions` と同期させる。
 
 ```csharp
-// PvsSearchEngine の MoveInfo に追加
+public void Initialize(Dictionary<string, List<List<ulong>>>? resource)
+{
+    var positions = resource.ToDictionary(r => FeaturePattern.GetType(r.Key), r => r.Value);
+    PatternPositions = positions;
+
+    // _preallocatedResults を PatternPositions に基づいて再構築する
+    _preallocatedResults.Clear();
+    foreach (var pattern in PatternPositions)
+    {
+        _preallocatedResults[pattern.Key] = new int[pattern.Value.Count];
+    }
+
+    // 逆引きテーブルも再構築する
+    BuildSquareToPatterns();
+}
+```
+
+#### 5.4.4 差分更新の統合とパターンインデックスの保存・復元方式
+
+MakeMove/UnmakeMove パターンと統合し、パターンインデックスの保存・復元を行う。
+
+**保存・復元方式の選定:**
+
+パターンインデックスの保存・復元には、`_preallocatedResults` の差分のみを `MoveInfo` に記録する方式を採用する。具体的には、差分更新で変更されたサブパターンの「変更前のインデックス値」と「変更位置（PatternType + SubPatternIndex）」のペアを固定サイズバッファに記録する。
+
+```csharp
+/// <summary>
+/// パターンインデックスの差分変更記録です。
+/// UnmakeMove 時に _preallocatedResults を復元するために使用します。
+/// </summary>
+private struct PatternIndexChange
+{
+    /// <summary>
+    /// パターンの種類
+    /// </summary>
+    public FeaturePattern.Type PatternType;
+
+    /// <summary>
+    /// サブパターンインデックス
+    /// </summary>
+    public int SubPatternIndex;
+
+    /// <summary>
+    /// 変更前のインデックス値
+    /// </summary>
+    public int PrevIndex;
+}
+
+// MoveInfo に追加
 private struct MoveInfo
 {
     // ... 既存フィールド ...
-    // パターンインデックスは ExtractNoAlloc の内部バッファに保持されるため、
-    // 変更前の値を保存して UnmakeMove 時に復元する
-    // ただし、パターン数が多い(13種×最大4サブパターン=最大52個)ため、
-    // 全インデックスを MoveInfo にコピーするのではなく、
-    // 差分情報（変化マスと変化前の状態）のみ保存する方式とする
+    public ulong PrevHash;      // 着手前のハッシュ値
+    public ulong Flipped;       // 裏返された石のビットボード
+
+    // パターンインデックスの差分変更記録
+    // 1マスの変化で影響するパターンは平均 5〜8 個、変化マスは最大 11 個（着手1 + 裏返し最大10）程度
+    // 最悪ケースを考慮して 128 個のバッファを確保する
+    public PatternIndexChange[] PatternChanges;
+    public int PatternChangeCount;
 }
 ```
+
+**MakeMove 時の差分更新フロー:**
+
+```csharp
+// MakeMove 内で差分更新を実行
+info.PatternChanges = _patternChangeBuffer; // 事前確保済みバッファを共有
+info.PatternChangeCount = 0;
+
+// 着手位置の差分更新
+UpdatePatternIndicesForSquare(move, /* empty -> turn */, ref info);
+
+// 裏返し位置の差分更新
+ulong tmpFlipped = flipped;
+while (tmpFlipped != 0)
+{
+    int sq = BitOperations.TrailingZeroCount(tmpFlipped);
+    UpdatePatternIndicesForSquare(sq, /* opponent -> turn */, ref info);
+    tmpFlipped &= tmpFlipped - 1;
+}
+```
+
+**UnmakeMove 時の復元フロー:**
+
+```csharp
+// UnmakeMove 内でパターンインデックスを復元
+for (int i = info.PatternChangeCount - 1; i >= 0; i--)
+{
+    var change = info.PatternChanges[i];
+    _preallocatedResults[change.PatternType][change.SubPatternIndex] = change.PrevIndex;
+}
+```
+
+`PatternIndexChange[]` バッファは `PvsSearchEngine` のフィールドとして 1 つ事前確保し、`MoveInfo` からは参照で共有する。探索はシングルスレッドであり、再帰呼び出しの各レベルで MakeMove → Pvs → UnmakeMove が必ず順序通りに実行されるため、バッファの競合は発生しない。ただし、再帰のネスト（最大探索深さ分）を考慮して、探索深さごとにバッファを分離するか、各 MoveInfo が変更記録の開始オフセットを保持する方式とする。具体的には、単一の大きな配列（`PatternIndexChange[MaxDepth * MaxChangesPerMove]`）を確保し、`MoveInfo` には開始オフセットと件数を保持する。
 
 **[仮定]** 差分更新の正しさは「差分更新後のインデックス = フルスキャンによるインデックス」で検証できる。デバッグビルドでは差分更新後にフルスキャンの結果と照合するアサーションを挿入し、開発中のバグを早期に検出する。
 
@@ -541,10 +899,37 @@ private struct MoveInfo
 - **評価関数の差分更新**: O(316) → O(30〜80) に削減。3〜10 倍の高速化を見込む。
 - **総合効果**: Phase 1/2 で GC 圧力を排除した上で、Phase 3 でアルゴリズムレベルの計算量を削減することにより、同一時間でより深い探索が可能になる。目標として、同一局面・同一深さでの探索速度を Phase 2 完了時点から 2〜5 倍に改善する。
 
+**ベンチマーク条件:**
+
+性能改善の効果を定量的に検証するため、以下のベンチマーク条件を定義する。各ステップ完了後にこの条件で計測を実施する。
+
+| 項目 | 条件 |
+|------|------|
+| 計測局面 | (1) 初期局面（開始直後）、(2) 中盤局面（20手目前後、多数の合法手がある局面）、(3) 終盤局面（50手目前後、空マス14以下） |
+| 探索深さ | 各局面について depth=8, depth=10 の 2 パターン |
+| 計測回数 | 各条件につき 5 回計測し、中央値を採用する |
+| ウォームアップ | 計測前に同一条件で 2 回の探索を実行し、JIT コンパイルとキャッシュを安定させる |
+| NPS 計算式 | `NPS = TotalNodes / ElapsedSeconds` （`TotalNodes` は反復深化の全深さの合計ノード数、`ElapsedSeconds` は探索開始から完了までの実時間） |
+| 比較基準 | Phase 2 完了時点（PR #59 マージ直後）のコードベースで同一条件で計測した NPS をベースラインとする |
+
 ### 7.3 可観測性 (Observability)
 
 - 既存のログ出力（`_logger.LogInformation` による探索進捗ログ: Depth, Nodes, TotalNodes, Value, MpcCuts, DepthElapsedMs 等）は維持する。
 - NPS（Nodes Per Second）メトリクスを探索完了ログに追加し、Phase 3 前後の性能比較を容易にする。
+
+**デバッグビルド限定の計測カウンタ:**
+
+Phase 3 の各最適化の個別効果を定量的に評価するため、デバッグビルド（`#if DEBUG`）で以下のカウンタを追加する:
+
+| カウンタ | 計測対象 | 目的 |
+|---------|---------|------|
+| `BitboardMoveGenCount` | `BitboardMobilityGenerator.GenerateMoves` の呼び出し回数 | ビットボード合法手生成の利用頻度の確認 |
+| `ZobristUpdateCount` | `UpdateHash` の呼び出し回数 | 差分更新の利用回数 |
+| `ZobristFullScanCount` | `ComputeHash` の呼び出し回数 | フルスキャンの残存回数（理想は RootSearch の 1 回のみ） |
+| `PatternDeltaUpdateCount` | パターンインデックス差分更新の呼び出し回数 | 差分更新の利用回数 |
+| `PatternDeltaAvgAffected` | 差分更新あたりの平均影響パターン数 | 差分更新の実効コストの把握 |
+
+探索完了時にログ出力し、各最適化の寄与度を定量的に評価できるようにする。
 
 ### 7.4 マイグレーションと後方互換性
 
@@ -553,6 +938,7 @@ private struct MoveInfo
 - **`MobilityAnalyzer` の内部変更**: `Analyze` / `AnalyzeCount` の公開インターフェースは変更しない。内部実装のみビットボード版に置換する。
 - **`BoardAccessor.GetDiscCount` の内部変更**: 公開インターフェースは変更しない。戻り値が同一であることをテストで保証する。
 - **`FeaturePatternExtractor` の変更**: `ExtractNoAlloc` の戻り値型は変更しない。差分更新用の新メソッドを追加する形とし、既存のフルスキャン版もデバッグ検証用に残す。
+- **`PvsSearchEngine` の変更**: `MoveAndReverseUpdater` への依存を削除し、コンストラクタのシグネチャが変更される。DI コンテナの登録を更新する必要がある。
 - **探索結果の一致**: 全改善項目はアルゴリズムの変更ではなく計算の効率化であるため、同一局面・同一深さでの探索結果（最善手・評価値）は変化しない。
 
 ## 8. テスト戦略 (Test Strategy)
@@ -567,6 +953,7 @@ private struct MoveInfo
 
 - **フルスキャン一致テスト**: 差分更新で計算したハッシュ値と、同一局面に対する `ComputeHash`（フルスキャン）の結果が一致することを検証する
 - **MakeMove/UnmakeMove 一致テスト**: MakeMove → UpdateHash → UnmakeMove → 元のハッシュ値に戻ることを検証する
+- **パス処理テスト**: パス時の `hash ^= TurnKey` による差分更新と、パス後の局面に対する `ComputeHash`（フルスキャン）の結果が一致することを検証する
 - **複数手シーケンステスト**: 10 手以上の着手・復元シーケンスで一貫性を検証する
 
 ### PopCount のテスト
@@ -595,9 +982,9 @@ private struct MoveInfo
 | 1-1 | `BitboardMobilityGenerator` 静的クラスの新規作成 | 合法手生成・裏返し計算のビットボード実装 |
 | 1-2 | 網羅テストの実装 | 既存の逐次判定との結果一致テスト |
 | 1-3 | `MobilityAnalyzer` の内部実装をビットボード版に置換 | `Analyze` / `AnalyzeCount` のビットボード化 |
-| 1-4 | `MoveAndReverseUpdater.Update` の裏返し処理をビットボード化 | `ComputeFlipped` を活用した裏返し処理 |
+| 1-4 | `PvsSearchEngine.MakeMove` の裏返し処理をビットボード化し、`MoveAndReverseUpdater` 依存を削除 | `ComputeFlipped` + ビットボード演算による着手実行 |
 | 1-5 | `BoardAccessor.GetDiscCount` を `BitOperations.PopCount()` に置換 | 1 行の変更 |
-| 1-6 | 既存テスト全通過 + 性能計測 | NPS の比較レポート |
+| 1-6 | 既存テスト全通過 + 性能計測 | ベンチマーク条件（7.2）に基づく NPS 比較レポート |
 
 ### Step 2: Zobrist ハッシュ差分更新（Step 1 の `flipped` に依存）
 
@@ -605,19 +992,19 @@ private struct MoveInfo
 |---------|------|--------|
 | 2-1 | `IZobristHash` に `UpdateHash` メソッドを追加 | インターフェース拡張 |
 | 2-2 | `ZobristHash.UpdateHash` の実装 | 差分更新ロジック |
-| 2-3 | `PvsSearchEngine` の TT Probe/Store でハッシュの差分更新を使用 | ハッシュ値の伝播・保存・復元 |
-| 2-4 | フルスキャン一致テスト | 差分更新の正しさ検証 |
-| 2-5 | 既存テスト全通過 + 性能計測 | NPS の比較レポート |
+| 2-3 | `PvsSearchEngine` の `Pvs` に `currentHash` パラメータを追加し、差分更新に切り替え | ハッシュ値の伝播・保存・復元（パス処理含む） |
+| 2-4 | フルスキャン一致テスト + パス処理テスト | 差分更新の正しさ検証 |
+| 2-5 | 既存テスト全通過 + 性能計測 | ベンチマーク条件（7.2）に基づく NPS 比較レポート |
 
 ### Step 3: 評価関数差分更新（Step 1 の `flipped` に依存、最も複雑）
 
 | ステップ | 内容 | 成果物 |
 |---------|------|--------|
-| 3-1 | マス → パターン逆引きテーブルの構築 | `PatternMapping[][]` の初期化ロジック |
+| 3-1 | マス → パターン逆引きテーブルの構築（`Initialize` 時の再構築含む） | `PatternMapping[][]` の初期化ロジック |
 | 3-2 | 差分更新ロジックの実装 | `UpdatePatternIndices` メソッド |
-| 3-3 | MakeMove/UnmakeMove との統合 | パターンインデックスの保存・復元 |
+| 3-3 | MakeMove/UnmakeMove との統合（`PatternIndexChange` バッファによる保存・復元） | パターンインデックスの保存・復元 |
 | 3-4 | フルスキャン一致テスト + デバッグアサーション | 差分更新の正しさ検証 |
-| 3-5 | 既存テスト全通過 + 性能計測 | NPS の比較レポート |
+| 3-5 | 既存テスト全通過 + 性能計測 | ベンチマーク条件（7.2）に基づく NPS 比較レポート |
 
 ### リスク軽減策
 
