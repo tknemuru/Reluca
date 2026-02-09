@@ -627,7 +627,7 @@ namespace Reluca.Search
             // 3) Move Ordering（評価値ソート）- 既存条件に従う
             if (ShouldOrder(depth - 1))
             {
-                moves = OrderMoves(moves, context);
+                OrderMoves(moves, context);
             }
 
             // 優先手を先頭に移動（後から挿入するので逆順で処理）
@@ -726,7 +726,7 @@ namespace Reluca.Search
                 // Move Ordering（既存と同じ条件: depth <= 6 相当）
                 if (ShouldOrder(remainingDepth))
                 {
-                    moves = OrderMoves(moves, context);
+                    OrderMoves(moves, context);
                 }
 
                 bool isFirstMove = true;
@@ -784,9 +784,18 @@ namespace Reluca.Search
             }
             else
             {
-                // パス処理（既存と同じ: context を直接変更、depth もカウント）
+                // パス処理: Turn を反転して再帰探索し、戻った後に Turn を復元する。
+                // MakeMove/UnmakeMove パターンと一貫した例外安全性を確保するため try/finally を使用する。
+                var prevTurn = context.Turn;
                 BoardAccessor.Pass(context);
-                maxValue = -Pvs(context, remainingDepth - 1, -beta, -alpha, true);
+                try
+                {
+                    maxValue = -Pvs(context, remainingDepth - 1, -beta, -alpha, true);
+                }
+                finally
+                {
+                    context.Turn = prevTurn;
+                }
             }
 
             // TT Store - Aspiration retry 中は Store を抑制
@@ -898,6 +907,13 @@ namespace Reluca.Search
         /// 指し手を実行し、盤面を in-place で更新します。
         /// 着手前の状態を MoveInfo 構造体に保存して返します。
         /// 呼び出し側は探索完了後に UnmakeMove で必ず盤面を復元する必要があります。
+        ///
+        /// フィールド復元の完全性について:
+        /// - _reverseUpdater.Update は Black, White のみを変更する（SetTurnDiscs/SetOppositeDiscs 経由）
+        /// - BoardAccessor.NextTurn は Turn, TurnCount, Stage を変更する
+        /// - BoardAccessor.Pass は Turn のみを変更する（OrderMoves 内で追加呼び出しされるケースがある）
+        /// - MoveInfo は上記すべてのフィールド（Black, White, Turn, TurnCount, Stage, Move, Mobility）を保存するため、
+        ///   UnmakeMove で完全に復元可能である
         /// </summary>
         /// <param name="context">現在のゲーム状態</param>
         /// <param name="move">指し手</param>
@@ -905,6 +921,10 @@ namespace Reluca.Search
         private MoveInfo MakeMove(GameContext context, int move)
         {
             // 着手前の状態を保存
+            // Note: MoveInfo は GameContext の全可変フィールドをカバーしている。
+            //       _reverseUpdater.Update が変更する Black/White、
+            //       BoardAccessor.NextTurn が変更する Turn/TurnCount/Stage、
+            //       および Move/Mobility のすべてを保存・復元する。
             var info = new MoveInfo
             {
                 PrevBlack = context.Black,
@@ -974,20 +994,18 @@ namespace Reluca.Search
         }
 
         /// <summary>
-        /// 指し手を評価値順にソートします。
-        /// LINQ を使用せず、stackalloc + 挿入ソートによりアロケーションを最小化します。
+        /// 指し手リストを評価値順に in-place でソートします。
+        /// LINQ を使用せず、stackalloc + 挿入ソートによりアロケーションをゼロにします。
         /// MakeMove/UnmakeMove パターンにより盤面を in-place で変更・復元します。
         /// オセロの合法手数は最大でも約 30 手程度であり、挿入ソートで十分な性能が得られます。
         /// </summary>
-        /// <param name="moves">指し手リスト</param>
+        /// <param name="moves">指し手リスト（in-place でソートされる）</param>
         /// <param name="context">現在のゲーム状態</param>
-        /// <returns>ソート済みの指し手リスト</returns>
-        private List<int> OrderMoves(List<int> moves, GameContext context)
+        private void OrderMoves(List<int> moves, GameContext context)
         {
             // 評価値を格納する配列（スタック上に確保）
             int count = moves.Count;
             Span<long> scores = stackalloc long[count];
-            Span<int> indices = stackalloc int[count];
 
             for (int i = 0; i < count; i++)
             {
@@ -995,6 +1013,9 @@ namespace Reluca.Search
                 try
                 {
                     // パスして元の手番から評価（既存と同じ）
+                    // Note: BoardAccessor.Pass は Turn のみ変更する。
+                    //       UnmakeMove は MakeMove 直前の全フィールド（Turn 含む）を復元するため、
+                    //       Pass による Turn 変更も含めて正しく復元される。
                     BoardAccessor.Pass(context);
                     scores[i] = Evaluate(context);
                 }
@@ -1002,32 +1023,23 @@ namespace Reluca.Search
                 {
                     UnmakeMove(context, moveInfo);
                 }
-                indices[i] = i;
             }
 
-            // 挿入ソート（降順）
+            // moves リスト自体を in-place で挿入ソート（降順）
             for (int i = 1; i < count; i++)
             {
                 long keyScore = scores[i];
-                int keyIndex = indices[i];
+                int keyMove = moves[i];
                 int j = i - 1;
                 while (j >= 0 && scores[j] < keyScore)
                 {
                     scores[j + 1] = scores[j];
-                    indices[j + 1] = indices[j];
+                    moves[j + 1] = moves[j];
                     j--;
                 }
                 scores[j + 1] = keyScore;
-                indices[j + 1] = keyIndex;
+                moves[j + 1] = keyMove;
             }
-
-            // ソート結果を反映
-            var sorted = new List<int>(count);
-            for (int i = 0; i < count; i++)
-            {
-                sorted.Add(moves[indices[i]]);
-            }
-            return sorted;
         }
     }
 }

@@ -46,6 +46,8 @@ namespace Reluca.Evaluates
 
         /// <summary>
         /// 初期化を行います。
+        /// PatternPositions の更新に合わせて _preallocatedResults も再構築し、
+        /// ExtractNoAlloc が正しく動作する状態を維持します。
         /// </summary>
         /// <param name="resource">特徴パターンの位置情報辞書</param>
         public void Initialize(Dictionary<string, List<List<ulong>>>? resource)
@@ -53,6 +55,13 @@ namespace Reluca.Evaluates
             // 文字列操作を避けるために、キーを文字列からenumに変換して保持する
             var positions = resource.ToDictionary(r => FeaturePattern.GetType(r.Key), r => r.Value);
             PatternPositions = positions;
+
+            // _preallocatedResults を PatternPositions に基づいて再構築する
+            _preallocatedResults.Clear();
+            foreach (var pattern in PatternPositions)
+            {
+                _preallocatedResults[pattern.Key] = new int[pattern.Value.Count];
+            }
         }
 
         /// <summary>
