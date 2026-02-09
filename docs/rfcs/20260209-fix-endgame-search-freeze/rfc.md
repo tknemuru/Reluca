@@ -3,7 +3,7 @@
 | 項目 | 内容 |
 | :--- | :--- |
 | **作成者 (Author)** | Claude Opus 4.6 |
-| **ステータス** | Draft (起草中) |
+| **ステータス** | Accepted (承認済) |
 | **作成日** | 2026-02-09 |
 | **タグ** | Search, Movers, Performance, P0 |
 | **関連リンク** | `docs/rfcs/20260209-search-engine-phase3-speedup/rfc.md` |
