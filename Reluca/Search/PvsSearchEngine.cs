@@ -54,6 +54,7 @@
 /// - Search メソッドでルート盤面をバックアップし、SearchTimeoutException 発生後に復元
 /// </summary>
 using System.Diagnostics;
+using System.Numerics;
 using Microsoft.Extensions.Logging;
 using Reluca.Accessors;
 using Reluca.Analyzers;
@@ -61,7 +62,6 @@ using Reluca.Contexts;
 using Reluca.Evaluates;
 using Reluca.Models;
 using Reluca.Search.Transposition;
-using Reluca.Updaters;
 
 namespace Reluca.Search
 {
@@ -105,11 +105,6 @@ namespace Reluca.Search
         /// 着手可能数分析機能
         /// </summary>
         private readonly MobilityAnalyzer _mobilityAnalyzer;
-
-        /// <summary>
-        /// 指し手による石の裏返し更新機能
-        /// </summary>
-        private readonly MoveAndReverseUpdater _reverseUpdater;
 
         /// <summary>
         /// 置換表
@@ -182,6 +177,34 @@ namespace Reluca.Search
         /// </summary>
         private int _aspirationFallbackCount;
 
+#if DEBUG
+        /// <summary>
+        /// ビットボード合法手生成の呼び出し回数カウンタ（デバッグ用）
+        /// </summary>
+        private long _debugBitboardMoveGenCount;
+
+        /// <summary>
+        /// Zobrist ハッシュ差分更新の呼び出し回数カウンタ（デバッグ用）
+        /// </summary>
+        private long _debugZobristUpdateCount;
+
+        /// <summary>
+        /// Zobrist ハッシュフルスキャンの呼び出し回数カウンタ（デバッグ用）
+        /// </summary>
+        private long _debugZobristFullScanCount;
+
+        /// <summary>
+        /// パターンインデックス差分更新の呼び出し回数カウンタ（デバッグ用）
+        /// </summary>
+        private long _debugPatternDeltaUpdateCount;
+
+        /// <summary>
+        /// パターンインデックス差分更新で影響を受けたパターン数の合計（デバッグ用）。
+        /// 平均影響パターン数の算出に使用します。
+        /// </summary>
+        private long _debugPatternDeltaAffectedTotal;
+#endif
+
         /// <summary>
         /// 探索の開始時刻を計測するストップウォッチ
         /// </summary>
@@ -191,6 +214,57 @@ namespace Reluca.Search
         /// 探索の制限時間（ミリ秒）。null は制限なし
         /// </summary>
         private long? _timeLimitMs;
+
+        /// <summary>
+        /// 特徴パターン抽出機能。差分更新のための逆引きテーブルとパターンインデックスバッファを保持します。
+        /// </summary>
+        private readonly FeaturePatternExtractor _featurePatternExtractor;
+
+        /// <summary>
+        /// パターンインデックスの差分変更記録用バッファ。
+        /// 探索全体で1つのバッファを共有し、各 MoveInfo が開始オフセットと件数を保持します。
+        /// </summary>
+        private PatternIndexChange[] _patternChangeBuffer;
+
+        /// <summary>
+        /// パターンインデックスの差分変更記録の現在のオフセット。
+        /// MakeMove のたびにオフセットが進み、UnmakeMove で戻ります。
+        /// </summary>
+        private int _patternChangeOffset;
+
+        /// <summary>
+        /// 1手あたりの最大パターン変更数。
+        /// 変化マス数（着手1 + 裏返し最大10 = 11）× 影響パターン数（最大8）= 88。
+        /// 安全マージンとして 2 のべき乗に切り上げます。
+        /// </summary>
+        private const int MaxChangesPerMove = 128;
+
+        /// <summary>
+        /// 最大探索深さ。パターン変更バッファのサイズ決定に使用します。
+        /// </summary>
+        private const int MaxSearchDepth = 64;
+
+        /// <summary>
+        /// パターンインデックスの差分変更記録です。
+        /// UnmakeMove 時に _preallocatedResults を復元するために使用します。
+        /// </summary>
+        private struct PatternIndexChange
+        {
+            /// <summary>
+            /// パターンの種類
+            /// </summary>
+            public FeaturePattern.Type PatternType;
+
+            /// <summary>
+            /// サブパターンインデックス
+            /// </summary>
+            public int SubPatternIndex;
+
+            /// <summary>
+            /// 変更前のインデックス値
+            /// </summary>
+            public int PrevIndex;
+        }
 
         /// <summary>
         /// 着手情報を保持する構造体。スタック上に配置され、ヒープアロケーションは発生しない。
@@ -232,6 +306,23 @@ namespace Reluca.Search
             /// 着手前の配置可能状態
             /// </summary>
             public ulong PrevMobility;
+
+            /// <summary>
+            /// 裏返された石のビットボード。
+            /// Zobrist ハッシュ差分更新および評価関数差分更新で使用します。
+            /// </summary>
+            public ulong Flipped;
+
+            /// <summary>
+            /// パターン変更バッファの開始オフセット。
+            /// UnmakeMove 時にこのオフセットから復元します。
+            /// </summary>
+            public int PatternChangeStart;
+
+            /// <summary>
+            /// パターン変更の件数。
+            /// </summary>
+            public int PatternChangeCount;
         }
 
         /// <summary>
@@ -239,27 +330,28 @@ namespace Reluca.Search
         /// </summary>
         /// <param name="logger">ロガー</param>
         /// <param name="mobilityAnalyzer">着手可能数分析機能</param>
-        /// <param name="reverseUpdater">石の裏返し更新機能</param>
         /// <param name="transpositionTable">置換表</param>
         /// <param name="zobristHash">Zobrist ハッシュ計算機能</param>
         /// <param name="mpcParameterTable">MPC パラメータテーブル</param>
         /// <param name="aspirationParameterTable">Aspiration Window のステージ別パラメータテーブル</param>
+        /// <param name="featurePatternExtractor">特徴パターン抽出機能（差分更新に使用）</param>
         public PvsSearchEngine(
             ILogger<PvsSearchEngine> logger,
             MobilityAnalyzer mobilityAnalyzer,
-            MoveAndReverseUpdater reverseUpdater,
             ITranspositionTable transpositionTable,
             IZobristHash zobristHash,
             MpcParameterTable mpcParameterTable,
-            AspirationParameterTable aspirationParameterTable)
+            AspirationParameterTable aspirationParameterTable,
+            FeaturePatternExtractor featurePatternExtractor)
         {
             _logger = logger;
             _mobilityAnalyzer = mobilityAnalyzer;
-            _reverseUpdater = reverseUpdater;
             _transpositionTable = transpositionTable;
             _zobristHash = zobristHash;
             _mpcParameterTable = mpcParameterTable;
             _aspirationParameterTable = aspirationParameterTable;
+            _featurePatternExtractor = featurePatternExtractor;
+            _patternChangeBuffer = new PatternIndexChange[MaxSearchDepth * MaxChangesPerMove];
             _bestMove = -1;
         }
 
@@ -293,6 +385,20 @@ namespace Reluca.Search
                 PrevMove = context.Move,
                 PrevMobility = context.Mobility,
             };
+
+            // パターンインデックスの初期フルスキャンと差分更新モードの設定
+            _featurePatternExtractor.ExtractNoAlloc(context.Board);
+            _featurePatternExtractor.IncrementalMode = true;
+            _patternChangeOffset = 0;
+
+#if DEBUG
+            // デバッグカウンタの初期化
+            _debugBitboardMoveGenCount = 0;
+            _debugZobristUpdateCount = 0;
+            _debugZobristFullScanCount = 0;
+            _debugPatternDeltaUpdateCount = 0;
+            _debugPatternDeltaAffectedTotal = 0;
+#endif
 
             // ストップウォッチ開始
             _stopwatch.Restart();
@@ -370,6 +476,12 @@ namespace Reluca.Search
                     // ルート盤面を復元（MakeMove/UnmakeMove の途中で例外が発生した可能性がある）
                     RestoreContext(context, rootBackup);
 
+                    // パターンインデックスを復元（差分更新が中途半端な状態の可能性がある）
+                    _featurePatternExtractor.IncrementalMode = false;
+                    _featurePatternExtractor.ExtractNoAlloc(context.Board);
+                    _featurePatternExtractor.IncrementalMode = true;
+                    _patternChangeOffset = 0;
+
                     // 直前の深さの結果を返す（result は更新しない）
                     // タイムアウト発生時の深さで探索されたノード数も集計に含める
                     totalNodesSearched += _nodesSearched;
@@ -405,6 +517,24 @@ namespace Reluca.Search
             }
 
             _stopwatch.Stop();
+
+            // 差分更新モードを終了
+            _featurePatternExtractor.IncrementalMode = false;
+
+#if DEBUG
+            // デバッグカウンタのログ出力
+            double debugPatternDeltaAvgAffected = _debugPatternDeltaUpdateCount > 0
+                ? (double)_debugPatternDeltaAffectedTotal / _debugPatternDeltaUpdateCount
+                : 0;
+            _logger.LogInformation("Phase3 デバッグカウンタ {@DebugCounters}", new
+            {
+                BitboardMoveGenCount = _debugBitboardMoveGenCount,
+                ZobristUpdateCount = _debugZobristUpdateCount,
+                ZobristFullScanCount = _debugZobristFullScanCount,
+                PatternDeltaUpdateCount = _debugPatternDeltaUpdateCount,
+                PatternDeltaAvgAffected = debugPatternDeltaAvgAffected,
+            });
+#endif
 
             return new SearchResult(
                 result.BestMove,
@@ -537,25 +667,31 @@ namespace Reluca.Search
         {
             // ルート局面の合法手を取得
             var moves = _mobilityAnalyzer.Analyze(context);
+#if DEBUG
+            _debugBitboardMoveGenCount++;
+#endif
             if (moves.Count == 0)
             {
                 return new SearchResult(-1, Evaluate(context));
             }
 
+            // ルートのハッシュを計算（TT Probe/Store および差分更新の起点として使用）
+            ulong rootHash = 0;
+            if (_options?.UseTranspositionTable == true)
+            {
+                rootHash = _zobristHash.ComputeHash(context);
+#if DEBUG
+                _debugZobristFullScanCount++;
+#endif
+            }
+
             // 手順序の最適化（優先順位: 1) TT bestMove, 2) 前回反復の bestMove, 3) その他）
-            moves = OptimizeMoveOrder(moves, context, depth);
+            moves = OptimizeMoveOrder(moves, context, depth, rootHash);
 
             // originalAlpha を保存（BoundType 判定用）
             long originalAlpha = alpha;
             long maxValue = DefaultAlpha;
             int rootBestMove = moves[0]; // 最初の手をデフォルトとする
-
-            // ルートのハッシュを計算（TT Store 用）
-            ulong rootHash = 0;
-            if (_options?.UseTranspositionTable == true)
-            {
-                rootHash = _zobristHash.ComputeHash(context);
-            }
 
             foreach (var move in moves)
             {
@@ -563,10 +699,19 @@ namespace Reluca.Search
                 long score;
                 try
                 {
+                    // Zobrist ハッシュの差分更新（MakeMove 後に子局面のハッシュを計算）
+                    ulong childHash = _options?.UseTranspositionTable == true
+                        ? _zobristHash.UpdateHash(rootHash, move, moveInfo.Flipped, moveInfo.PrevTurn == Disc.Color.Black)
+                        : 0;
+#if DEBUG
+                    if (_options?.UseTranspositionTable == true)
+                        _debugZobristUpdateCount++;
+#endif
+
                     // 再帰探索
                     // depth=1 の時 remainingDepth=0 で即評価
                     // depth=N の時 remainingDepth=N-1 で (N-1) レベル探索
-                    score = -Pvs(context, depth - 1, -beta, -alpha, false);
+                    score = -Pvs(context, depth - 1, -beta, -alpha, false, childHash);
                 }
                 finally
                 {
@@ -601,17 +746,17 @@ namespace Reluca.Search
         /// <param name="moves">合法手リスト</param>
         /// <param name="context">ゲーム状態</param>
         /// <param name="depth">探索深さ</param>
+        /// <param name="currentHash">現在局面の Zobrist ハッシュ値（呼び出し元で計算済み）</param>
         /// <returns>最適化された手順序</returns>
-        private List<int> OptimizeMoveOrder(List<int> moves, GameContext context, int depth)
+        private List<int> OptimizeMoveOrder(List<int> moves, GameContext context, int depth, ulong currentHash)
         {
             int? ttMove = null;
             int? prevBestMove = null;
 
-            // 1) TT bestMove を取得
+            // 1) TT bestMove を取得（ハッシュは呼び出し元から受け取る）
             if (_options?.UseTranspositionTable == true)
             {
-                ulong hash = _zobristHash.ComputeHash(context);
-                int ttBestMove = _transpositionTable.GetBestMove(hash);
+                int ttBestMove = _transpositionTable.GetBestMove(currentHash);
                 if (ttBestMove != TTEntry.NoBestMove && moves.Contains(ttBestMove))
                 {
                     ttMove = ttBestMove;
@@ -651,14 +796,16 @@ namespace Reluca.Search
         /// ルート以外のノードで使用します。
         /// 最初の手をフルウィンドウで探索し、2 手目以降は Null Window Search で枝刈りを試みます。
         /// MakeMove/UnmakeMove パターンにより盤面を in-place で変更・復元します。
+        /// Zobrist ハッシュは呼び出し元で差分更新された値を受け取り、再計算を回避します。
         /// </summary>
         /// <param name="context">現在のゲーム状態</param>
         /// <param name="remainingDepth">残り探索深さ（0 で評価）</param>
         /// <param name="alpha">アルファ値（下界）</param>
         /// <param name="beta">ベータ値（上界）</param>
         /// <param name="isPassed">直前がパスだったかどうか</param>
+        /// <param name="currentHash">現在局面の Zobrist ハッシュ値（差分更新済み）</param>
         /// <returns>評価値</returns>
-        private long Pvs(GameContext context, int remainingDepth, long alpha, long beta, bool isPassed)
+        private long Pvs(GameContext context, int remainingDepth, long alpha, long beta, bool isPassed, ulong currentHash)
         {
             _nodesSearched++;
 
@@ -682,12 +829,10 @@ namespace Reluca.Search
             // originalAlpha を保存（Store 時の BoundType 判定用）
             long originalAlpha = alpha;
 
-            // TT Probe
-            ulong hash = 0;
+            // TT Probe（ハッシュは呼び出し元から差分更新で受け取る）
             if (_options?.UseTranspositionTable == true)
             {
-                hash = _zobristHash.ComputeHash(context);
-                if (_transpositionTable.TryProbe(hash, remainingDepth, alpha, beta, out var entry))
+                if (_transpositionTable.TryProbe(currentHash, remainingDepth, alpha, beta, out var entry))
                 {
                     return entry.Value;
                 }
@@ -697,7 +842,7 @@ namespace Reluca.Search
             // パス直後のノードでは MPC を適用しない（局面の性質が大きく変化しているため）
             if (_mpcEnabled && !isPassed)
             {
-                var mpcResult = TryMultiProbCut(context, remainingDepth, alpha, beta);
+                var mpcResult = TryMultiProbCut(context, remainingDepth, alpha, beta, currentHash);
                 if (mpcResult.HasValue)
                 {
                     return mpcResult.Value;
@@ -706,6 +851,9 @@ namespace Reluca.Search
 
             // 合法手を取得
             var moves = _mobilityAnalyzer.Analyze(context);
+#if DEBUG
+            _debugBitboardMoveGenCount++;
+#endif
 
             long maxValue = DefaultAlpha;
             int localBestMove = TTEntry.NoBestMove;
@@ -715,7 +863,7 @@ namespace Reluca.Search
                 // TT の bestMove を先頭に移動（Move Ordering 改善）
                 if (_options?.UseTranspositionTable == true)
                 {
-                    int ttMove = _transpositionTable.GetBestMove(hash);
+                    int ttMove = _transpositionTable.GetBestMove(currentHash);
                     if (ttMove != TTEntry.NoBestMove && moves.Contains(ttMove))
                     {
                         moves.Remove(ttMove);
@@ -737,20 +885,29 @@ namespace Reluca.Search
                     long score;
                     try
                     {
+                        // Zobrist ハッシュの差分更新（MakeMove 後に子局面のハッシュを計算）
+                        ulong childHash = _options?.UseTranspositionTable == true
+                            ? _zobristHash.UpdateHash(currentHash, move, moveInfo.Flipped, moveInfo.PrevTurn == Disc.Color.Black)
+                            : 0;
+#if DEBUG
+                        if (_options?.UseTranspositionTable == true)
+                            _debugZobristUpdateCount++;
+#endif
+
                         if (isFirstMove)
                         {
                             // 最初の手: フルウィンドウで探索
-                            score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false);
+                            score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false, childHash);
                             isFirstMove = false;
                         }
                         else
                         {
                             // 2手目以降: Null Window Search
-                            score = -Pvs(context, remainingDepth - 1, -alpha - 1, -alpha, false);
+                            score = -Pvs(context, remainingDepth - 1, -alpha - 1, -alpha, false, childHash);
                             if (score > alpha && score < beta)
                             {
                                 // fail-high: フルウィンドウで再探索
-                                score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false);
+                                score = -Pvs(context, remainingDepth - 1, -beta, -alpha, false, childHash);
                             }
                         }
                     }
@@ -765,7 +922,7 @@ namespace Reluca.Search
                         // TT Store（LowerBound）- Aspiration retry 中は Store を抑制
                         if (_options?.UseTranspositionTable == true && !_suppressTTStore)
                         {
-                            _transpositionTable.Store(hash, remainingDepth, score, BoundType.LowerBound, move);
+                            _transpositionTable.Store(currentHash, remainingDepth, score, BoundType.LowerBound, move);
                         }
 
                         return score;
@@ -786,11 +943,13 @@ namespace Reluca.Search
             {
                 // パス処理: Turn を反転して再帰探索し、戻った後に Turn を復元する。
                 // MakeMove/UnmakeMove パターンと一貫した例外安全性を確保するため try/finally を使用する。
+                // パス時のハッシュ更新: 盤面は変わらず手番のみ反転するため、TurnKey を XOR する
                 var prevTurn = context.Turn;
                 BoardAccessor.Pass(context);
+                ulong passHash = currentHash ^ ZobristKeys.TurnKey;
                 try
                 {
-                    maxValue = -Pvs(context, remainingDepth - 1, -beta, -alpha, true);
+                    maxValue = -Pvs(context, remainingDepth - 1, -beta, -alpha, true, passHash);
                 }
                 finally
                 {
@@ -802,7 +961,7 @@ namespace Reluca.Search
             if (_options?.UseTranspositionTable == true && !_suppressTTStore && moves.Count > 0)
             {
                 var boundType = DetermineBoundType(maxValue, originalAlpha, beta);
-                _transpositionTable.Store(hash, remainingDepth, maxValue, boundType, localBestMove);
+                _transpositionTable.Store(currentHash, remainingDepth, maxValue, boundType, localBestMove);
             }
 
             return maxValue;
@@ -817,8 +976,9 @@ namespace Reluca.Search
         /// <param name="remainingDepth">残り探索深さ</param>
         /// <param name="alpha">アルファ値</param>
         /// <param name="beta">ベータ値</param>
+        /// <param name="currentHash">現在局面の Zobrist ハッシュ値（差分更新済み）</param>
         /// <returns>カット値。カットしない場合は null</returns>
-        private long? TryMultiProbCut(GameContext context, int remainingDepth, long alpha, long beta)
+        private long? TryMultiProbCut(GameContext context, int remainingDepth, long alpha, long beta, ulong currentHash)
         {
             var cutPairs = _mpcParameterTable.CutPairs;
             double zValue = _mpcParameterTable.ZValue;
@@ -851,7 +1011,7 @@ namespace Reluca.Search
                 bool savedSuppressTTStore = _suppressTTStore;
                 _mpcEnabled = false;
                 _suppressTTStore = false;
-                long shallowValue = Pvs(context, pair.ShallowDepth, DefaultAlpha, DefaultBeta, false);
+                long shallowValue = Pvs(context, pair.ShallowDepth, DefaultAlpha, DefaultBeta, false, currentHash);
                 _mpcEnabled = savedMpcFlag;
                 _suppressTTStore = savedSuppressTTStore;
 
@@ -905,15 +1065,21 @@ namespace Reluca.Search
 
         /// <summary>
         /// 指し手を実行し、盤面を in-place で更新します。
+        /// ビットボード演算で裏返し石を計算し、盤面を直接更新します。
         /// 着手前の状態を MoveInfo 構造体に保存して返します。
         /// 呼び出し側は探索完了後に UnmakeMove で必ず盤面を復元する必要があります。
         ///
         /// フィールド復元の完全性について:
-        /// - _reverseUpdater.Update は Black, White のみを変更する（SetTurnDiscs/SetOppositeDiscs 経由）
+        /// - ビットボード演算により Black, White を直接更新する
         /// - BoardAccessor.NextTurn は Turn, TurnCount, Stage を変更する
         /// - BoardAccessor.Pass は Turn のみを変更する（OrderMoves 内で追加呼び出しされるケースがある）
         /// - MoveInfo は上記すべてのフィールド（Black, White, Turn, TurnCount, Stage, Move, Mobility）を保存するため、
         ///   UnmakeMove で完全に復元可能である
+        ///
+        /// 【重要】このメソッド内でタイムアウトチェック（ThrowIfTimeout / SearchTimeoutException のスロー）を
+        /// 行ってはならない。パターンインデックスの差分更新（UpdatePatternIndicesForSquare）が中途半端な状態で
+        /// 例外が発生すると、_patternChangeOffset が不整合な状態となり、復元処理が正しく機能しなくなる。
+        /// タイムアウトチェックは Pvs メソッド冒頭でのみ行うこと。
         /// </summary>
         /// <param name="context">現在のゲーム状態</param>
         /// <param name="move">指し手</param>
@@ -921,10 +1087,6 @@ namespace Reluca.Search
         private MoveInfo MakeMove(GameContext context, int move)
         {
             // 着手前の状態を保存
-            // Note: MoveInfo は GameContext の全可変フィールドをカバーしている。
-            //       _reverseUpdater.Update が変更する Black/White、
-            //       BoardAccessor.NextTurn が変更する Turn/TurnCount/Stage、
-            //       および Move/Mobility のすべてを保存・復元する。
             var info = new MoveInfo
             {
                 PrevBlack = context.Black,
@@ -936,21 +1098,114 @@ namespace Reluca.Search
                 PrevMobility = context.Mobility,
             };
 
-            // in-place で盤面を更新
+            // ビットボード演算で裏返し石を計算
+            var (player, opponent) = context.Turn == Disc.Color.Black
+                ? (context.Black, context.White)
+                : (context.White, context.Black);
+            ulong flipped = Analyzers.BitboardMobilityGenerator.ComputeFlipped(player, opponent, move);
+
+            // flipped を MoveInfo に保存（Zobrist 差分更新・評価関数差分更新で使用）
+            info.Flipped = flipped;
+
+            // パターンインデックスの差分更新
+            // 着手位置: 空(Empty=1) → 手番色（Black=2 or White=0）
+            // 裏返し位置: 相手色(White=0 or Black=2) → 手番色（Black=2 or White=0）
+            bool isBlackTurn = context.Turn == Disc.Color.Black;
+            info.PatternChangeStart = _patternChangeOffset;
+            int changeCount = 0;
+
+            // 着手位置の差分 (Empty → Turn)
+            // Black: delta = (2 - 1) * weight = +weight
+            // White: delta = (0 - 1) * weight = -weight
+            int moveDelta = isBlackTurn ? 1 : -1; // 1 = (Black-Empty), -1 = (White-Empty)
+            changeCount += UpdatePatternIndicesForSquare(move, moveDelta);
+
+            // 裏返し位置の差分 (Opponent → Turn)
+            // Black turn: White(0) → Black(2), delta = +2 * weight
+            // White turn: Black(2) → White(0), delta = -2 * weight
+            int flipDelta = isBlackTurn ? 2 : -2;
+            ulong tmpFlipped = flipped;
+            while (tmpFlipped != 0)
+            {
+                int sq = BitOperations.TrailingZeroCount(tmpFlipped);
+                changeCount += UpdatePatternIndicesForSquare(sq, flipDelta);
+                tmpFlipped &= tmpFlipped - 1;
+            }
+            info.PatternChangeCount = changeCount;
+#if DEBUG
+            _debugPatternDeltaUpdateCount++;
+            _debugPatternDeltaAffectedTotal += changeCount;
+#endif
+
+            // ビットボード演算で盤面を更新
+            ulong moveBit = 1UL << move;
+            player |= moveBit | flipped;    // 着手位置 + 裏返し石を自石に追加
+            opponent &= ~flipped;           // 裏返し石を相手石から除去
+
+            // コンテキストに反映
+            if (context.Turn == Disc.Color.Black)
+            {
+                context.Black = player;
+                context.White = opponent;
+            }
+            else
+            {
+                context.White = player;
+                context.Black = opponent;
+            }
+
             context.Move = move;
-            _reverseUpdater.Update(context);
             BoardAccessor.NextTurn(context);
 
             return info;
         }
 
         /// <summary>
+        /// 指定マスの変化に伴い、影響を受ける全パターンのインデックスを差分更新します。
+        /// 変更前のインデックスをバッファに記録し、UnmakeMove での復元に備えます。
+        /// </summary>
+        /// <param name="square">変化したマス（0-63）</param>
+        /// <param name="deltaMultiplier">差分の方向と大きさ（+1: 空→黒, -1: 空→白, +2: 白→黒, -2: 黒→白）</param>
+        /// <returns>記録した変更件数</returns>
+        private int UpdatePatternIndicesForSquare(int square, int deltaMultiplier)
+        {
+            var mappings = _featurePatternExtractor.GetSquarePatterns(square);
+            var results = _featurePatternExtractor.PreallocatedResults;
+            int count = 0;
+
+            for (int i = 0; i < mappings.Length; i++)
+            {
+                var mapping = mappings[i];
+                var arr = results[mapping.PatternType];
+                int prevIndex = arr[mapping.SubPatternIndex];
+
+                // 変更前のインデックスをバッファに記録
+                Debug.Assert(_patternChangeOffset < _patternChangeBuffer.Length,
+                    $"パターン変更バッファがオーバーフローしています: offset={_patternChangeOffset}");
+                _patternChangeBuffer[_patternChangeOffset] = new PatternIndexChange
+                {
+                    PatternType = mapping.PatternType,
+                    SubPatternIndex = mapping.SubPatternIndex,
+                    PrevIndex = prevIndex,
+                };
+                _patternChangeOffset++;
+                count++;
+
+                // インデックスを差分更新
+                arr[mapping.SubPatternIndex] = prevIndex + deltaMultiplier * mapping.TernaryWeight;
+            }
+
+            return count;
+        }
+
+        /// <summary>
         /// 盤面を着手前の状態に復元します。
         /// MakeMove で保存した MoveInfo を使用して、全てのフィールドを元の値に戻します。
+        /// パターンインデックスも変更記録から逆順に復元します。
         /// </summary>
         /// <param name="context">現在のゲーム状態</param>
         /// <param name="info">MakeMove で保存した着手前の状態情報</param>
-        private static void UnmakeMove(GameContext context, MoveInfo info)
+        private void UnmakeMove(GameContext context, MoveInfo info)
         {
             context.Black = info.PrevBlack;
             context.White = info.PrevWhite;
@@ -959,6 +1214,16 @@ namespace Reluca.Search
             context.Stage = info.PrevStage;
             context.Move = info.PrevMove;
             context.Mobility = info.PrevMobility;
+
+            // パターンインデックスを逆順に復元
+            var results = _featurePatternExtractor.PreallocatedResults;
+            int end = info.PatternChangeStart + info.PatternChangeCount;
+            for (int i = end - 1; i >= info.PatternChangeStart; i--)
+            {
+                var change = _patternChangeBuffer[i];
+                results[change.PatternType][change.SubPatternIndex] = change.PrevIndex;
+            }
+            _patternChangeOffset = info.PatternChangeStart;
         }
 
         /// <summary>

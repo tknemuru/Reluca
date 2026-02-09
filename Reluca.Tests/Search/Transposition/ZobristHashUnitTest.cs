@@ -1,9 +1,15 @@
 /// <summary>
 /// 【ModuleDoc】
-/// 責務: ZobristHash の単体テストを提供する
+/// 責務: ZobristHash の単体テスト（ComputeHash および UpdateHash）を提供する
 /// 入出力: テストケース → テスト結果
 /// 副作用: なし
+///
+/// 備考:
+/// - ComputeHash: フルスキャン計算の正当性テスト（同一盤面、手番、空盤面、再現性）
+/// - UpdateHash: 差分更新がフルスキャンと一致することのテスト（単一着手、複数手シーケンス、パス処理）
 /// </summary>
+using Reluca.Accessors;
+using Reluca.Analyzers;
 using Reluca.Contexts;
 using Reluca.Models;
 using Reluca.Search.Transposition;
@@ -146,6 +152,205 @@ namespace Reluca.Tests.Search.Transposition
         }
 
         /// <summary>
+        /// 単一着手の UpdateHash がフルスキャン ComputeHash と一致する
+        /// </summary>
+        [TestMethod]
+        public void 単一着手のUpdateHashがフルスキャンと一致する()
+        {
+            // Arrange: 初期局面（黒番）
+            var context = CreateInitialPosition();
+            ulong hashBefore = _zobristHash.ComputeHash(context);
+
+            // 黒番の全合法手について検証
+            ulong movesBitboard = BitboardMobilityGenerator.GenerateMoves(context.Black, context.White);
+            var moves = BitboardMobilityGenerator.ToMoveList(movesBitboard);
+            Assert.IsTrue(moves.Count > 0, "合法手がありません");
+
+            foreach (var move in moves)
+            {
+                // 着手を実行して子局面を作成
+                var childContext = CreateInitialPosition();
+                ulong flipped = BitboardMobilityGenerator.ComputeFlipped(childContext.Black, childContext.White, move);
+                ApplyMove(childContext, move, flipped);
+
+                // Act: UpdateHash で差分更新
+                ulong incrementalHash = _zobristHash.UpdateHash(hashBefore, move, flipped, true);
+
+                // Act: ComputeHash でフルスキャン
+                ulong fullScanHash = _zobristHash.ComputeHash(childContext);
+
+                // Assert
+                Assert.AreEqual(fullScanHash, incrementalHash,
+                    $"Move {move}: UpdateHash (0x{incrementalHash:X16}) != ComputeHash (0x{fullScanHash:X16})");
+            }
+        }
+
+        /// <summary>
+        /// 白番からの単一着手でも UpdateHash がフルスキャンと一致する
+        /// </summary>
+        [TestMethod]
+        public void 白番の単一着手のUpdateHashがフルスキャンと一致する()
+        {
+            // Arrange: 初期局面を白番に変更
+            var context = CreateInitialPosition();
+            context.Turn = Disc.Color.White;
+            ulong hashBefore = _zobristHash.ComputeHash(context);
+
+            // 白番の全合法手について検証
+            ulong movesBitboard = BitboardMobilityGenerator.GenerateMoves(context.White, context.Black);
+            var moves = BitboardMobilityGenerator.ToMoveList(movesBitboard);
+            Assert.IsTrue(moves.Count > 0, "合法手がありません");
+
+            foreach (var move in moves)
+            {
+                // 着手を実行して子局面を作成
+                var childContext = CreateInitialPosition();
+                childContext.Turn = Disc.Color.White;
+                ulong flipped = BitboardMobilityGenerator.ComputeFlipped(childContext.White, childContext.Black, move);
+                ApplyMove(childContext, move, flipped);
+
+                // Act: UpdateHash で差分更新（isBlackTurn=false）
+                ulong incrementalHash = _zobristHash.UpdateHash(hashBefore, move, flipped, false);
+
+                // Act: ComputeHash でフルスキャン
+                ulong fullScanHash = _zobristHash.ComputeHash(childContext);
+
+                // Assert
+                Assert.AreEqual(fullScanHash, incrementalHash,
+                    $"Move {move}: UpdateHash (0x{incrementalHash:X16}) != ComputeHash (0x{fullScanHash:X16})");
+            }
+        }
+
+        /// <summary>
+        /// 複数手シーケンスで UpdateHash の連鎖がフルスキャンと一致する
+        /// </summary>
+        [TestMethod]
+        public void 複数手シーケンスでUpdateHashの連鎖がフルスキャンと一致する()
+        {
+            // Arrange: 初期局面から 5 手分の差分更新を連鎖させる
+            var context = CreateInitialPosition();
+            ulong currentHash = _zobristHash.ComputeHash(context);
+
+            for (int step = 0; step < 5; step++)
+            {
+                // 現在の手番の合法手を取得
+                var (player, opponent) = context.Turn == Disc.Color.Black
+                    ? (context.Black, context.White)
+                    : (context.White, context.Black);
+
+                ulong movesBitboard = BitboardMobilityGenerator.GenerateMoves(player, opponent);
+                if (movesBitboard == 0)
+                {
+                    break; // パスになったら終了
+                }
+
+                // 最初の合法手を選択
+                var moves = BitboardMobilityGenerator.ToMoveList(movesBitboard);
+                int move = moves[0];
+                bool isBlackTurn = context.Turn == Disc.Color.Black;
+
+                // 裏返し石を計算
+                ulong flipped = BitboardMobilityGenerator.ComputeFlipped(player, opponent, move);
+
+                // UpdateHash で差分更新
+                currentHash = _zobristHash.UpdateHash(currentHash, move, flipped, isBlackTurn);
+
+                // 盤面を実際に更新
+                ApplyMove(context, move, flipped);
+
+                // フルスキャンと比較
+                ulong fullScanHash = _zobristHash.ComputeHash(context);
+                Assert.AreEqual(fullScanHash, currentHash,
+                    $"Step {step + 1}: UpdateHash 連鎖 (0x{currentHash:X16}) != ComputeHash (0x{fullScanHash:X16})");
+            }
+        }
+
+        /// <summary>
+        /// パス処理で TurnKey XOR がフルスキャンと一致する
+        /// </summary>
+        [TestMethod]
+        public void パス処理でTurnKeyXORがフルスキャンと一致する()
+        {
+            // Arrange: 任意の局面でパスをシミュレート
+            var context = CreateInitialPosition();
+            ulong hashBefore = _zobristHash.ComputeHash(context);
+
+            // パス: 盤面はそのまま、手番のみ反転
+            ulong passHash = hashBefore ^ ZobristKeys.TurnKey;
+
+            // パス後の局面をフルスキャンで計算
+            context.Turn = Disc.Color.White;
+            ulong fullScanHash = _zobristHash.ComputeHash(context);
+
+            // Assert
+            Assert.AreEqual(fullScanHash, passHash,
+                $"パス後: TurnKey XOR (0x{passHash:X16}) != ComputeHash (0x{fullScanHash:X16})");
+        }
+
+        /// <summary>
+        /// 裏返し石なしの着手でも UpdateHash が正しく動作する
+        /// </summary>
+        [TestMethod]
+        public void 裏返し石なしの着手でもUpdateHashが動作する()
+        {
+            // Arrange: 空盤面に1手だけ置くケース（裏返し石なし）
+            var context = new GameContext
+            {
+                Board = new BoardContext { Black = 0, White = 0 },
+                Turn = Disc.Color.Black
+            };
+            ulong hashBefore = _zobristHash.ComputeHash(context);
+
+            // 裏返し石なしで e4 (28) に着手
+            int move = 28;
+            ulong flipped = 0UL;
+            ulong incrementalHash = _zobristHash.UpdateHash(hashBefore, move, flipped, true);
+
+            // 盤面を手動で更新
+            context.Black |= 1UL << move;
+            context.Turn = Disc.Color.White;
+            ulong fullScanHash = _zobristHash.ComputeHash(context);
+
+            // Assert
+            Assert.AreEqual(fullScanHash, incrementalHash,
+                $"裏返し石なし: UpdateHash (0x{incrementalHash:X16}) != ComputeHash (0x{fullScanHash:X16})");
+        }
+
+        /// <summary>
+        /// 中盤局面での UpdateHash がフルスキャンと一致する
+        /// </summary>
+        [TestMethod]
+        public void 中盤局面でUpdateHashがフルスキャンと一致する()
+        {
+            // Arrange: 中盤局面
+            var context = CreateMidgamePosition();
+            ulong hashBefore = _zobristHash.ComputeHash(context);
+
+            // 全合法手について検証
+            var (player, opponent) = context.Turn == Disc.Color.Black
+                ? (context.Black, context.White)
+                : (context.White, context.Black);
+            ulong movesBitboard = BitboardMobilityGenerator.GenerateMoves(player, opponent);
+            var moves = BitboardMobilityGenerator.ToMoveList(movesBitboard);
+
+            foreach (var move in moves)
+            {
+                // 子局面を作成
+                var childContext = CreateMidgamePosition();
+                ulong flipped = BitboardMobilityGenerator.ComputeFlipped(player, opponent, move);
+                ApplyMove(childContext, move, flipped);
+
+                // 差分更新とフルスキャンを比較
+                bool isBlackTurn = context.Turn == Disc.Color.Black;
+                ulong incrementalHash = _zobristHash.UpdateHash(hashBefore, move, flipped, isBlackTurn);
+                ulong fullScanHash = _zobristHash.ComputeHash(childContext);
+
+                Assert.AreEqual(fullScanHash, incrementalHash,
+                    $"Move {move}: UpdateHash (0x{incrementalHash:X16}) != ComputeHash (0x{fullScanHash:X16})");
+            }
+        }
+
+        /// <summary>
         /// 初期局面（オセロの標準開始位置）を作成します。
         /// </summary>
         /// <returns>初期局面のゲーム状態</returns>
@@ -164,6 +369,47 @@ namespace Reluca.Tests.Search.Transposition
                 Turn = Disc.Color.Black
             };
             return context;
+        }
+
+        /// <summary>
+        /// 中盤局面を作成します。
+        /// </summary>
+        /// <returns>中盤局面のゲーム状態</returns>
+        private static GameContext CreateMidgamePosition()
+        {
+            return new GameContext
+            {
+                Board = new BoardContext
+                {
+                    Black = (1UL << 19) | (1UL << 27) | (1UL << 28) | (1UL << 35) | (1UL << 20) | (1UL << 29) | (1UL << 34),
+                    White = (1UL << 36) | (1UL << 37) | (1UL << 26) | (1UL << 21) | (1UL << 18) | (1UL << 44)
+                },
+                Turn = Disc.Color.Black
+            };
+        }
+
+        /// <summary>
+        /// 着手を盤面に反映します。
+        /// 自石に着手位置と裏返し石を追加し、相手石から裏返し石を除去し、手番を反転します。
+        /// </summary>
+        /// <param name="context">ゲーム状態</param>
+        /// <param name="move">着手位置（0-63）</param>
+        /// <param name="flipped">裏返された石のビットボード</param>
+        private static void ApplyMove(GameContext context, int move, ulong flipped)
+        {
+            ulong moveBit = 1UL << move;
+            if (context.Turn == Disc.Color.Black)
+            {
+                context.Black |= moveBit | flipped;
+                context.White &= ~flipped;
+                context.Turn = Disc.Color.White;
+            }
+            else
+            {
+                context.White |= moveBit | flipped;
+                context.Black &= ~flipped;
+                context.Turn = Disc.Color.Black;
+            }
         }
     }
 }
