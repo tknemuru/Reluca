@@ -52,9 +52,9 @@ if (context.TurnCount >= EndgameTurnThreshold)
 
 | # | Goal | 達成確認方法 (Verification) |
 |---|------|-----------------------------|
-| G1 | 反復深化の上限を残り空きマス数に制限し、不要な深さの探索を排除する | 終盤局面（ターン46以降）で `depth` が `64 - PopCount(black \| white)` に設定されることをデバッグログで確認する。depth 超過の反復深化ループが実行されないことをログから確認する |
+| G1 | 反復深化の上限を残り空きマス数に制限し、不要な深さの探索を排除する | 終盤局面（ターン46以降、空きマス数が既知の局面）を `FindBestMover.Move` に渡し、`SearchResult.CompletedDepth` が `64 - PopCount(black \| white)` 以下であることを単体テストで検証する |
 | G2 | 連続パス時にリーフ評価へ即座に遷移し、不要な再帰探索を排除する | 連続パス局面を含む終盤テストケースを作成し、連続パス検出後に `Evaluate` が呼ばれることを単体テストで検証する |
-| G3 | 終盤探索でパターンインデックスの差分更新をスキップし、不要な計算を排除する | 終盤探索時に `IncrementalMode` が `false` のまま維持されることを確認する。`DiscCountEvaluator` 使用時にパターン差分更新のデバッグカウンタが 0 であることを検証する |
+| G3 | 終盤探索でパターンインデックスの差分更新をスキップし、不要な計算を排除する | `DiscCountEvaluator` を評価関数として渡した場合に `_usePatternIncremental` が `false` のまま維持され、パターン差分更新が実行されないことを単体テストで検証する（検証方法の詳細はセクション8を参照） |
 
 ### やらないこと (Non-Goals)
 
@@ -100,13 +100,24 @@ if (context.TurnCount >= EndgameTurnThreshold)
 
 **理由**: オセロの終盤では、空きマス数が探索の理論上の最大深さとなる。depth > emptyCount の反復深化は、探索木の全ノードで `remainingDepth == 0` に到達し、即座にリーフ評価に落ちるため完全に冗長である。この変更により、ターン46時点で最大85回の不要な反復深化ループが排除される。
 
-**補足**: `EndgameDepth` 定数は不要となるため削除する。`System.Numerics.BitOperations` の `using` ディレクティブを追加する。
+**補足**: `EndgameDepth` 定数は不要となるため削除する。`System.Numerics.BitOperations` の `using` ディレクティブを追加する。`context.Black | context.White` の PopCount には初期配置の4石も含まれるため、`64 - PopCount(black | white)` は常に正確な空きマス数を返す。セクション2の `64 - 46 - 4 = 14` は TurnCount と初期配置石数を個別に考慮した説明であり、コード上の計算式 `64 - PopCount(black | white)` と数学的に等価である。
 
 ### 5.2 対策2: 連続パスの終了判定を追加する
 
 **変更対象**: `Reluca/Search/PvsSearchEngine.cs` の `Pvs` メソッド
 
 `Pvs` メソッドのパス処理ブロック（L942-958）に連続パス検出を追加する。
+
+**パス処理を含むメソッド・パスの網羅的分析**:
+
+`PvsSearchEngine` 内でパス処理（`isPassed` パラメータの伝播）を行うパスを以下に整理する。
+
+1. **`RootSearch` メソッド（L666）**: ルート局面の合法手が0件の場合、`Evaluate` を呼んで即座に返す（L673-676）。ルートでは `isPassed` を管理しておらず、ルート局面が合法手なしの場合は探索自体が成立しないため、連続パス検出は不要である。
+2. **`Pvs` メソッド（L808）**: 合法手が0件の場合のパス処理（L942-958）が唯一のパス伝播箇所である。`isPassed = true` を渡して再帰呼び出しを行う。本対策の修正対象である。
+3. **`TryMultiProbCut` メソッド（L981）**: 浅い探索として `Pvs` を `isPassed: false` で呼び出す（L1014）。MPC の浅い探索ではパス状態を引き継がないため、連続パス検出の修正は不要である。
+4. **`Pvs` 内の PVS 再探索パス（L906-911）**: Null Window Search で fail-high した場合のフルウィンドウ再探索は、`MakeMove` で着手済みの子局面に対して行われるため `isPassed: false` で呼び出される。連続パス検出の修正は不要である。
+
+以上の分析により、連続パス検出の修正が必要な箇所は `Pvs` メソッドのパス処理ブロック（L942-958）のみである。
 
 **変更前**:
 ```csharp
@@ -156,11 +167,44 @@ else
 
 **探索の正確性への影響**: 連続パスはゲーム終了を意味するため、それ以上の探索は不可能である。リーフ評価（石数差による評価）を返すのが正確な動作であり、探索結果の品質に悪影響はない。むしろ、現在の実装は `remainingDepth` 分だけパスを繰り返すという不正確な挙動を含んでいるため、本修正は正確性の向上でもある。
 
+**`Evaluate` の符号の正当性**: `PvsSearchEngine.Evaluate` メソッド（L1059-1064）は `_evaluator.Evaluate(context)` の結果に `context.Turn` に応じたパリティ（黒番なら +1、白番なら -1）を乗じて返す。したがって、戻り値は常に現在の `context.Turn` 視点の評価値である。連続パス時は `context.Turn` が直前のパス処理で反転されていない（パス処理の `else` ブロック冒頭で `isPassed` を判定するため、`BoardAccessor.Pass` は呼ばれない）ため、現在の手番視点の正しい評価値が返される。NegaScout の符号規約とも整合する。
+
 ### 5.3 対策3: 終盤探索でパターン差分更新をスキップする
 
 **変更対象**: `Reluca/Search/PvsSearchEngine.cs` の `Search` メソッド
 
-パターンインデックスのフルスキャンと `IncrementalMode` 設定を、評価関数がパターンベースの場合にのみ実行するよう条件分岐を追加する。
+パターンインデックスのフルスキャンと `IncrementalMode` 設定を、評価関数がパターンインデックスを必要とする場合にのみ実行するよう条件分岐を追加する。
+
+**インターフェースの拡張**:
+
+評価関数がパターンインデックスを必要とするかどうかの判定を、探索エンジンが具象型で行うのは開放閉鎖原則に違反する。`IEvaluable` インターフェースに `RequiresPatternIndex` プロパティを追加し、評価関数自身がパターンインデックスの必要性を宣言する設計とする。
+
+**変更対象**: `Reluca/Evaluates/IEvaluable.cs`
+
+```csharp
+public interface IEvaluable
+{
+    /// <summary>
+    /// ゲーム状態を評価します。
+    /// </summary>
+    /// <param name="context">ゲーム状態</param>
+    /// <returns>ゲーム状態の評価値</returns>
+    long Evaluate(GameContext context);
+
+    /// <summary>
+    /// パターンインデックスの差分更新を必要とするかどうかを示します。
+    /// true の場合、探索エンジンは MakeMove/UnmakeMove 時にパターンインデックスの差分更新を実行します。
+    /// </summary>
+    bool RequiresPatternIndex { get; }
+}
+```
+
+**各評価関数の実装**:
+
+- `FeaturePatternEvaluator`: `public bool RequiresPatternIndex => true;`（パターンインデックスに依存する）
+- `DiscCountEvaluator`: `public bool RequiresPatternIndex => false;`（石数差のみで評価し、パターンインデックスを参照しない）
+
+将来新しい評価関数が追加された場合も、その評価関数自身が `RequiresPatternIndex` を宣言するため、`PvsSearchEngine` の修正は不要となる。
 
 **変更前**:
 ```csharp
@@ -172,9 +216,9 @@ _patternChangeOffset = 0;
 
 **変更後**:
 ```csharp
-// パターンベース評価関数の場合のみ差分更新を有効化
-bool usePatternIncremental = evaluator is FeaturePatternEvaluator;
-if (usePatternIncremental)
+// 評価関数がパターンインデックスを必要とする場合のみ差分更新を有効化
+_usePatternIncremental = evaluator.RequiresPatternIndex;
+if (_usePatternIncremental)
 {
     _featurePatternExtractor.ExtractNoAlloc(context.Board);
     _featurePatternExtractor.IncrementalMode = true;
@@ -182,12 +226,50 @@ if (usePatternIncremental)
 }
 ```
 
-同様に、`Search` メソッドの終了時（L522）と `SearchTimeoutException` ハンドラ内（L480-483）の `IncrementalMode` 操作も条件分岐で囲む。
+同様に、`Search` メソッドの終了時（L522）と `SearchTimeoutException` ハンドラ内（L480-483）の `IncrementalMode` 操作も `_usePatternIncremental` フラグで条件分岐する。
+
+**`_usePatternIncremental` フラグの状態管理**:
+
+`_usePatternIncremental` はインスタンスフィールドとして定義する。`Search` メソッドの冒頭で `evaluator.RequiresPatternIndex` に基づき設定し、`MakeMove`/`UnmakeMove` 内で参照する。
+
+例外安全性を確保するため、`Search` メソッドの `finally` ブロックで `_usePatternIncremental = false` にリセットする。`SearchTimeoutException` ハンドラ内でも、パターン復元処理の後に `_usePatternIncremental = false` を実行する。これにより、例外発生時にフラグが不整合な状態で残ることを防止する。
+
+```csharp
+// Search メソッドの finally ブロック（L519-522 相当）
+finally
+{
+    _stopwatch.Stop();
+    if (_usePatternIncremental)
+    {
+        _featurePatternExtractor.IncrementalMode = false;
+    }
+    _usePatternIncremental = false;
+}
+```
+
+```csharp
+// SearchTimeoutException ハンドラ内（L480-483 相当）
+catch (SearchTimeoutException)
+{
+    RestoreContext(context, rootBackup);
+
+    if (_usePatternIncremental)
+    {
+        _featurePatternExtractor.IncrementalMode = false;
+        _featurePatternExtractor.ExtractNoAlloc(context.Board);
+        _featurePatternExtractor.IncrementalMode = true;
+        _patternChangeOffset = 0;
+    }
+    _usePatternIncremental = false;
+
+    // ... 以降のタイムアウト処理
+}
+```
 
 **`MakeMove` / `UnmakeMove` への影響**:
 `MakeMove` 内のパターン差分更新処理（L1110-1138）は `_featurePatternExtractor.GetSquarePatterns(square)` を呼び出してパターン逆引き情報を取得し、`_preallocatedResults` を更新する。`IncrementalMode == false` の場合、`ExtractNoAlloc` がフルスキャンを行うため差分更新は不要だが、`MakeMove` は `IncrementalMode` を参照せず常に差分更新を実行する。
 
-したがって、`MakeMove` 内のパターン差分更新処理も `usePatternIncremental` フラグで条件分岐する必要がある。このフラグをインスタンスフィールド `_usePatternIncremental` として保持し、`MakeMove` と `UnmakeMove` 内で参照する。
+したがって、`MakeMove` 内のパターン差分更新処理も `_usePatternIncremental` フラグで条件分岐する。
 
 **変更箇所（`MakeMove`）**:
 ```csharp
@@ -263,9 +345,15 @@ if (_usePatternIncremental)
 
 ### 7.1 パフォーマンス
 
-対策1により、ターン46時点で反復深化ループが最大85回削減される。対策2により、連続パス局面での不要な再帰が排除される。対策3により、終盤探索の全ノードでパターン差分更新のオーバーヘッド（1ノードあたり逆引きテーブル参照 + バッファ書き込み）が排除される。
+3つの対策はそれぞれ異なるレベルの削減効果を持つ。フリーズ解消への寄与度が大きい順に整理する。
 
-これら3つの対策の相乗効果により、終盤探索の応答時間が大幅に改善され、UI フリーズ問題が解消される見込みである。
+**対策2（連続パス検出）が最大の寄与**: 連続パス未検出は、終盤の探索木を指数関数的に膨張させる主因である。連続パス状態に達した後も `remainingDepth` 分だけパス処理の再帰が続くため、ゲーム終了済みの局面に対して深さ分のノードが不要に展開される。終盤の探索木においてゲーム終了局面（両者合法手なし）は複数箇所に出現するため、累積的な無駄が非常に大きい。連続パス検出によりこれらの不要なノードが即座に打ち切られることで、探索ノード数が大幅に削減される。
+
+**対策3（パターン差分更新スキップ）が次に寄与**: パターン差分更新は全ノードの `MakeMove`/`UnmakeMove` で実行されるため、探索ノード数に比例したオーバーヘッドとなる。1ノードあたりの削減量は小さいが、終盤探索では数十万〜数百万ノードが展開されるため、累積的な効果は大きい。
+
+**対策1（反復深化上限制限）は補助的**: depth 超過分の反復深化ループは「合法手0件で即座に返る」ため、1ループあたりのコストは小さい。ただし85回分のループ排除により、探索開始時の不要なオーバーヘッドが確実に除去される。
+
+これら3つの対策の相乗効果、特に対策2による探索木の適切な打ち切りにより、終盤探索の応答時間が大幅に改善され、UI フリーズ問題が解消される。
 
 ### 7.2 可観測性 (Observability)
 
@@ -274,6 +362,8 @@ if (_usePatternIncremental)
 ### 7.3 後方互換性
 
 探索エンジンのインターフェース（`ISearchEngine.Search`）に変更はない。`FindBestMover.Move` の戻り値（最善手のインデックス）にも変更はない。外部から観測可能な変更は、終盤の応答速度が改善されることのみである。
+
+`IEvaluable` インターフェースに `RequiresPatternIndex` プロパティが追加されるため、`IEvaluable` を実装するすべてのクラスに本プロパティの実装が必要となる。現在の実装では `FeaturePatternEvaluator` と `DiscCountEvaluator` の2クラスのみが対象であり、影響範囲は限定的である。
 
 `EndgameDepth` 定数の削除は、現在この定数が `FindBestMover` 内部でのみ使用されているため、外部への影響はない。
 
@@ -291,8 +381,10 @@ if (_usePatternIncremental)
 
 ### 対策3: パターン差分更新のスキップ
 
-- **単体テスト**: `DiscCountEvaluator` を評価関数として渡した場合、デバッグカウンタ `_debugPatternDeltaUpdateCount` が 0 であることを検証する。
-- **回帰テスト**: `FeaturePatternEvaluator` を評価関数として渡した場合、差分更新が従来通り動作し、探索結果が変わらないことを検証する。
+- **単体テスト**: `DiscCountEvaluator`（`RequiresPatternIndex = false`）を評価関数として渡した場合、探索結果が正しい石数差評価値を返すことを検証する。`FeaturePatternEvaluator` 使用時と同じ局面で、`DiscCountEvaluator` が返すべき評価値（石数差）と探索結果が一致することで、パターン差分更新のスキップが探索結果に悪影響を与えていないことを間接的に検証する。
+- **回帰テスト**: `FeaturePatternEvaluator`（`RequiresPatternIndex = true`）を評価関数として渡した場合、差分更新が従来通り動作し、探索結果が変わらないことを検証する。
+
+**デバッグカウンタについて**: 既存の `_debugPatternDeltaUpdateCount` は `#if DEBUG` 条件コンパイルで定義されており、テストプロジェクトは `DEBUG` 構成でビルドされる。ただし、テストからこのカウンタに直接アクセスするには `internal` アクセス修飾子 + `InternalsVisibleTo` が必要となり、テストのためだけにアクセシビリティを変更するのは過剰である。上述の通り、探索結果の値の正しさを検証する方式を主テスト手法とし、デバッグカウンタは開発時の手動確認用に留める。
 
 ## 9. 実装・リリース計画 (Implementation Plan)
 
@@ -309,9 +401,12 @@ if (_usePatternIncremental)
 
 ### フェーズ3: 対策3（パターン差分更新のスキップ）
 
+- `IEvaluable` インターフェースに `RequiresPatternIndex` プロパティを追加する。
+- `FeaturePatternEvaluator` に `RequiresPatternIndex => true` を実装する。
+- `DiscCountEvaluator` に `RequiresPatternIndex => false` を実装する。
 - `PvsSearchEngine` に `_usePatternIncremental` フィールドを追加する。
 - `Search`, `MakeMove`, `UnmakeMove` メソッドに条件分岐を追加する。
-- `SearchTimeoutException` ハンドラ内のパターン復元処理にも条件分岐を追加する。
+- `SearchTimeoutException` ハンドラおよび `finally` ブロックで `_usePatternIncremental` をリセットする処理を追加する。
 - 単体テスト・回帰テストを追加する。
 
 ### システム概要ドキュメントへの影響
